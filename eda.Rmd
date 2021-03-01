@@ -1,0 +1,40 @@
+---
+title: "Evapotranspiration EDA"
+author: "Ronny Hernández Mora"
+date: "2/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(janitor)
+library(visdat)
+library(bigleaf)
+```
+
+# Import data
+
+```{r}
+data <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512.csv") %>% 
+  clean_names()
+
+data_2 <- read_csv("data/descarga_completa.csv") %>% 
+  clean_names()
+
+data_3 <- read_csv("data/COSTA RICA - Santa Rosa National Park, Guanacaste.csv") %>% 
+  clean_names()
+```
+
+## Data validation
+
+```{r}
+data %>% 
+  # slice(1:1000) %>% 
+  vis_miss()
+
+glimpse(data)
+```
+

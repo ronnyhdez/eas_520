@@ -1,0 +1,70 @@
+---
+title: "Bigleaf package use"
+author: "Ronny Hernández Mora"
+date: "2/28/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(bigleaf)
+```
+
+## Objetive
+
+To understand the steps in order to calculate several values with help from the
+functions from the bigleafR package.
+
+# Data
+
+Package contains an example data set
+```{r}
+data_example <- DE_Tha_Jun_2014
+```
+
+There is a need of ancillary data as:
+
+```{r}
+LAI <- 7.6 # leaf area index
+zh <- 26.5 # average vegetation height (m)
+zr <- 42 # sensor height (m)
+Dl <- 0.01 # leaf characteristic dimension (m)
+```
+
+
+## Units
+
+Para cada funcion del paquete las unidades deben de ser validadas. En la ayuda
+de cada una de las funciones se encuentran las unidades.
+
+## Nombres variables
+
+Las funciones del paquete están para trabajar con los mismos nombres del 
+conjunto de datos que viene de ejemplo, por lo que si queremos usar la funcion
+sin dar los argumentos, nuestro conjunto  de datos debe de tener los mismos
+nombres.
+
+# Filtrado de datos
+
+```{r}
+tha_filtered1 <- filter.data(data, 
+                             quality.control = TRUE,
+                             vars.qc = c("LE", "H", "NEE", "Tair", "VPD", "wind"),
+                             quality.ext = "_qc", 
+                             good.quality = c(0, 1), 
+                             missing.qc.as.bad = TRUE)
+```
+
+
+# Para calcular potential evapotranspiration
+
+potential.ET(tha_filtered, G = "G", approach = "Priestley-Taylor")
+
+
+
+
+
+
+
+
+

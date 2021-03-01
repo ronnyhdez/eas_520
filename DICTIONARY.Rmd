@@ -1,0 +1,65 @@
+---
+title: "DATA DICTIONARY"
+author: "Ronny Hernández Mora"
+date: "2/28/2021"
+always_allow_html: yes
+output:
+  html_document:
+    code_folding: hide
+    self_contained: true
+    keep_md: false
+    number_sections: no
+    theme: spacelab
+    toc: yes
+    toc_float:
+      collapsed: no
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(gt)
+library(janitor)
+
+# Import data
+st <- read_csv("data/descarga_completa.csv") %>% 
+  clean_names()
+```
+
+```{r, message=FALSE}
+types <- map_dfr(.x = st, .f = function(tipo) {
+  typeof(tipo)
+}) %>% 
+  pivot_longer(cols = everything(), 
+               names_to = "variable",
+               values_to = "type")
+
+missing <- map_dfr(.x = st, .f = function(missing) {
+   is.na(missing) %>% 
+    sum() %>% 
+    format(., big.mark = ",")
+}) %>% 
+  pivot_longer(cols = everything(), 
+               names_to = "variable",
+               values_to = "missing")
+
+diff <- map_dfr(.x = st, .f = function(missing) {
+   n_distinct(missing)
+}) %>% 
+  pivot_longer(cols = everything(), 
+               names_to = "variable", 
+               values_to = "unique")
+
+dictionary <- left_join(types, missing) %>% 
+  left_join(diff)
+
+dictionary %>% 
+  gt()
+```
+
+
