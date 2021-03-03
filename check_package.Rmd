@@ -31,13 +31,14 @@ zr <- 42 # sensor height (m)
 Dl <- 0.01 # leaf characteristic dimension (m)
 ```
 
-
 ## Units
 
-Para cada funcion del paquete las unidades deben de ser validadas. En la ayuda
-de cada una de las funciones se encuentran las unidades.
+For each function in the package, we need to validate that in our dataset we
+have the same units. In the documentation of each function there is information
+about the variables needed as arguments in the functions and the units of
+measurement.
 
-## Nombres variables
+## Variable names
 
 Las funciones del paquete están para trabajar con los mismos nombres del 
 conjunto de datos que viene de ejemplo, por lo que si queremos usar la funcion
@@ -47,7 +48,7 @@ nombres.
 # Filtrado de datos
 
 ```{r}
-tha_filtered1 <- filter.data(data, 
+tha_filtered <- filter.data(data, 
                              quality.control = TRUE,
                              vars.qc = c("LE", "H", "NEE", "Tair", "VPD", "wind"),
                              quality.ext = "_qc", 
@@ -55,10 +56,13 @@ tha_filtered1 <- filter.data(data,
                              missing.qc.as.bad = TRUE)
 ```
 
-
 # Para calcular potential evapotranspiration
 
+```{r}
 potential.ET(tha_filtered, G = "G", approach = "Priestley-Taylor")
+```
+
+
 
 
 

@@ -18,13 +18,10 @@ library(bigleaf)
 # Import data
 
 ```{r}
-data <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512.csv") %>% 
+carbon_tower_streams <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_Streams_Streams(12345)_20181228_20190128.csv") %>% 
   clean_names()
 
-data_2 <- read_csv("data/descarga_completa.csv") %>% 
-  clean_names()
-
-data_3 <- read_csv("data/COSTA RICA - Santa Rosa National Park, Guanacaste.csv") %>% 
+carbon_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512.csv") %>% 
   clean_names()
 ```
 
