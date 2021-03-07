@@ -31,6 +31,13 @@ zr <- 42 # sensor height (m)
 Dl <- 0.01 # leaf characteristic dimension (m)
 ```
 
+## A quick example of using a function
+```{r}
+pet <- potential.ET(data_example, Tair = "Tair", pressure = "pressure", 
+             Rn = "Rn", VPD = "VPD", approach = "Priestley-Taylor")
+```
+
+
 ## Units
 
 For each function in the package, we need to validate that in our dataset we
@@ -48,7 +55,7 @@ nombres.
 # Filtrado de datos
 
 ```{r}
-tha_filtered <- filter.data(data, 
+tha_filtered <- filter.data(data_example, 
                              quality.control = TRUE,
                              vars.qc = c("LE", "H", "NEE", "Tair", "VPD", "wind"),
                              quality.ext = "_qc", 
@@ -62,7 +69,13 @@ tha_filtered <- filter.data(data,
 potential.ET(tha_filtered, G = "G", approach = "Priestley-Taylor")
 ```
 
+Evapotranspiracion se puede sacar con la siguiente funcion, donde convierte
+Latent Heat Flux (W m-2) con Air Temperature (C) a evapotranspiracion (kg m-2 s-1)
 
+```{r}
+# LE of 200 Wm-2 and air temperature of 25degC
+LE.to.ET(200, 25)
+```
 
 
 

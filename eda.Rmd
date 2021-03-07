@@ -1,18 +1,33 @@
 ---
 title: "Evapotranspiration EDA"
+subtitle: "EAS 520"
 author: "Ronny Hernández Mora"
 date: "2/27/2021"
-output: html_document
+always_allow_html: yes
+output:
+  html_document:
+    code_folding: hide
+    self_contained: true
+    number_sections: no
+    theme: spacelab
+    toc: yes
+    toc_float:
+      collapsed: false
+editor_options:
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 library(dplyr)
 library(ggplot2)
 library(readr)
 library(janitor)
 library(visdat)
 library(bigleaf)
+library(lubridate)
+library(gt)
+library(tidyr)
 ```
 
 # Import data
@@ -25,13 +40,128 @@ carbon_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_C
   clean_names()
 ```
 
-## Data validation
+## Carbon tower streams
 
+In order to understand the structure of the data set please check the
+**DICTIONARY file**
+
+**Note** Even if you select a date range from 2013 to present in the 
+enviro-net portal, there are just two months available to retrieve.
+
+### Evapotranspiration EDA from streams
+
+First we check the months and years available in the data set:
 ```{r}
-data %>% 
-  # slice(1:1000) %>% 
-  vis_miss()
-
-glimpse(data)
+carbon_tower_streams %>% 
+  mutate(date = as_date(date_time)) %>% 
+  group_by(year(date), month(date)) %>% 
+  tally() %>% 
+  gt()
 ```
 
+The date range we have available is `r range(carbon_tower_streams$date_time, na.rm = TRUE)`
+
+```{r}
+# day <- interval(hms("06:00:00"), hms("17:30:00"))
+# Evapotranspiration
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = evapotranspiration)) +
+  geom_point() +
+  # Si tenemos datetime, cambiamos el scale_x
+  scale_x_datetime(date_labels = "%d-%b-%Y",  date_breaks = "1 day") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title = "Evapotranspiration carbon tower Santa Rosa",
+       x = "Date", y = "Evapotranspiration kg m-2 s-1")
+
+# Water vapor mass density carbon
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = ambient_water_vapor_mass_density)) +
+  geom_line() +
+  # Si tenemos datetime, cambiamos el scale_x
+  scale_x_datetime(date_labels = "%d-%b-%Y",  date_breaks = "1 day") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title = "Water vapor mass density carbon tower Santa Rosa",
+       x = "Date", y = "Water vapor mass density carbon")
+
+# Latent heat flux
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = latent_heat_flux)) +
+  geom_line() +
+  # Si tenemos datetime, cambiamos el scale_x
+  scale_x_datetime(date_labels = "%d-%b-%Y",  date_breaks = "1 day") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title = "Latent heat flux carbon tower Santa Rosa",
+       x = "Date", y = "Latent heat flux")
+
+# Net ecosystem exchange
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = net_ecosystem_exchange_mmol_m_2_s_1 )) +
+  geom_line() +
+  # Si tenemos datetime, cambiamos el scale_x
+  scale_x_datetime(date_labels = "%d-%b-%Y",  date_breaks = "1 day") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title = "Net ecosystem exchange carbon tower Santa Rosa",
+       x = "Date", y = "Net ecosystem exchange mmol m2 s1")
+```
+
+## Relations between variables
+
+```{r}
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = evapotranspiration, 
+             y = net_ecosystem_exchange_mmol_m_2_s_1 )) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_light()
+
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = evapotranspiration, 
+             y = latent_heat_flux)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_light()
+
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = evapotranspiration, 
+             y = ambient_water_vapor_mass_density)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_light()
+```
+
+
+```{r}
+# carbon_tower_streams %>% 
+#   separate(col = date_time, into = c("date", "time"), sep = " ") %>% 
+#   mutate(day_nigth = ifelse()) %>%
+```
+
+
+# Preguntas
+
+ - Idea es usar variable evapotranspiración del conjunto `carbon_tower_streams` o calcularla de alguna manera con los datos del
+ conjunto `carbon_tower_flux`
+   - Si debo de calcularla del último, ¿cuál es la manera correcta? 
+   Referir a funciones de paquete `bigleafR`
+ - Al calcular la evapotranspiración buscamos relacionarla con otras
+ variables o la idea es buscar fenómenos como sequías, temporales etc?
+ - ¿Dónde puedo ver las unidades en que están las mediciones?
+ - 
+
+## Notas
+
+Evapotranspiration can be computed as reference, potential, or actual 
+evapotranspiration.   Reference evapotranspiration is that from a grass surface 
+that is well-watered.  Potential evapotranspiration is that from a surface that 
+has unlimited water (such as a lake). Tomado de (aquí)[https://www.usgs.gov/centers/car-fl-water/science/reference-and-potential-evapotranspiration?qt-science_center_objects=0#qt-science_center_objects]
