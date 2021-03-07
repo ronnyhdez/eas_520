@@ -62,7 +62,6 @@ carbon_tower_streams %>%
 The date range we have available is `r range(carbon_tower_streams$date_time, na.rm = TRUE)`
 
 ```{r}
-# day <- interval(hms("06:00:00"), hms("17:30:00"))
 # Evapotranspiration
 carbon_tower_streams %>% 
   mutate(date = ymd_hms(date_time)) %>%
@@ -74,6 +73,59 @@ carbon_tower_streams %>%
   theme(axis.text.x = element_text(angle = 90)) +
   labs(title = "Evapotranspiration carbon tower Santa Rosa",
        x = "Date", y = "Evapotranspiration kg m-2 s-1")
+
+# day <- interval(hms("06:00:00"), hms("17:30:00"))
+carbon_tower_streams %>% 
+  mutate(day = ifelse(hms(date_time) > hms("06:00:00") & hms(date_time) > hms("17:00:00"), "dia", "noche")) %>% 
+  select(date_time, day) %>%  View()
+
+carbon_tower_streams %>% 
+  separate(col = date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = hms(time),
+         day = ifelse(hms(time) > hms("05:20:00") & 
+                        hms(time) < hms("17:20:00"),
+                      "day", "nigth")) %>%
+  replace_na(list(day = "nigth")) %>% 
+  ggplot(aes(x = date, y = evapotranspiration, colour = day)) +
+  geom_jitter(alpha = 0.5, size = 2) +
+  theme_light(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  scale_y_continuous(breaks = seq(-0.2, 0.2, by = 0.02)) +
+  labs(title = "Evapotranspiration carbon tower Santa Rosa",
+       x = "Date", y = "Evapotranspiration kg m-2 s-1")
+
+# Check nigth values with evapotranspiration close to day values
+## above 0.04 we can try to explore those values in the nigth category
+carbon_tower_streams %>% 
+  separate(col = date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = hms(time),
+         day = ifelse(hms(time) > hms("05:20:00") & 
+                        hms(time) < hms("17:20:00"),
+                      "day", "nigth")) %>%
+  replace_na(list(day = "nigth")) %>% 
+  filter(evapotranspiration > 0.04) %>% 
+  View()
+
+# Revisión de datos de evapotranspiracion y latent heat
+check <- carbon_tower_streams %>% 
+  separate(col = date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = hms(time),
+         day = ifelse(hms(time) > hms("05:20:00") & 
+                        hms(time) < hms("17:20:00"),
+                      "day", "nigth")) %>%
+  replace_na(list(day = "nigth")) %>% 
+  mutate(eva_plus = ifelse(evapotranspiration > 0.04, "high", "low"))
+
+# ¿Qué características tienen los puntos de noche con eva > 0.04?
+check %>% 
+  select(time, day, evapotranspiration, latent_heat_flux) %>% 
+  View() # Notar que el latent heat flux es la multiplicacion de
+# evapotranspiracion * mil
+
+check %>% 
+  # filter(eva_plus == "high") %>% 
+  ggplot(aes(x = evapotranspiration, y = latent_heat_flux, colour = day)) +
+  geom_jitter(alpha = 0.3)
 
 # Water vapor mass density carbon
 carbon_tower_streams %>% 
@@ -112,8 +164,9 @@ carbon_tower_streams %>%
        x = "Date", y = "Net ecosystem exchange mmol m2 s1")
 ```
 
-## Relations between variables
+### Relations between variables
 
+Just to understand evapotranspiration behavious against other variables
 ```{r}
 carbon_tower_streams %>% 
   mutate(date = ymd_hms(date_time)) %>%
@@ -140,11 +193,60 @@ carbon_tower_streams %>%
   theme_light()
 ```
 
-
 ```{r}
 # carbon_tower_streams %>% 
 #   separate(col = date_time, into = c("date", "time"), sep = " ") %>% 
 #   mutate(day_nigth = ifelse()) %>%
+```
+
+## Carbon tower eddy
+
+In order to understand the structure of the data set please check the
+**DICTIONARY file**
+
+**Note** 
+
+```{r}
+eddy <- carbon_tower_eddy %>% 
+  select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp)
+```
+
+## Calculo de evapotranspiracion con bigleafR
+
+<!-- For bigleafR function we need latent heat and air temperature with -->
+<!-- LE of 200 Wm-2 and air temperature of 25degC `LE.to.ET(200, 25)` -->
+
+Evapotranspiracion se puede sacar con la siguiente funcion, donde convierte
+Latent Heat Flux (W m-2) con Air Temperature (C) a evapotranspiracion (kg m-2 s-1)
+
+```{r}
+evapotranspiration <- eddy %>% 
+  mutate(evapotranspiration = LE.to.ET(latent_heat_flux,
+                                       mean_thermocouple_temp))
+```
+
+### Exploratory visualizations from eddy
+
+```{r}
+## Grafico solo imprime enero. Vamos a tomar solo un año
+# evapotranspiration %>%
+#   mutate(date = ymd_hms(date_time)) %>%
+#   # filter values above 0.05
+#   filter(evapotranspiration < 0.05) %>% 
+#   ggplot(aes(x = date_time, y = evapotranspiration)) +
+#   geom_point() +
+#   # Si tenemos datetime, cambiamos el scale_x
+#   scale_x_datetime(date_labels = "%b") +
+#   theme_light() +
+#   theme(axis.text.x = element_text(angle = 90)) +
+#   labs(title = "Evapotranspiration carbon tower Santa Rosa",
+#        x = "Date", y = "Evapotranspiration kg m-2 s-1") +
+#   facet_wrap(~year(date_time))
+
+## Filtering just one year
+
 ```
 
 
@@ -157,7 +259,11 @@ carbon_tower_streams %>%
  - Al calcular la evapotranspiración buscamos relacionarla con otras
  variables o la idea es buscar fenómenos como sequías, temporales etc?
  - ¿Dónde puedo ver las unidades en que están las mediciones?
- - 
+ - Pregunta para reunión más larga: ¿Cuál es el proceso de los datos desde
+ los sensores de las torres hasta environet?
+ - Ver los datos de stream donde la evapotranspiracion es la division de
+ latent heat flux en mil.
+ - ¿La temperatura del aire es la que obtengo con el mean_thermocouple_temp?
 
 ## Notas
 
