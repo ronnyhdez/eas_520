@@ -28,6 +28,7 @@ library(bigleaf)
 library(lubridate)
 library(gt)
 library(tidyr)
+library(purrr)
 ```
 
 # Import data
@@ -114,7 +115,7 @@ values in the night. Is this normal or is due to an error?
 
 I defined day as those observations between the `date_time > 05:20:00` and 
 `date_time 17:20:00` in order to check this values
-```{r check night values}
+```{r check night values, eval = FALSE, fig.width=10}
 # Check nigth values with evapotranspiration close to day values
 ## above 0.04 we can try to explore those values in the nigth category
 carbon_tower_streams %>% 
@@ -125,7 +126,15 @@ carbon_tower_streams %>%
                       "day", "nigth")) %>%
   replace_na(list(day = "nigth")) %>% 
   filter(evapotranspiration > 0.04) %>% 
-  DT::datatable()
+  DT::datatable(
+    rownames = FALSE,
+    extensions = 'Buttons',
+    selection = list(mode = 'single', target = 'row'),
+    options = list(
+      lengthMenu = list(c(20, 50, 100, -1), c('20', '50', '100', 'All')),
+      dom = 'Bflp',
+      buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+      scrollX = T)) 
 ```
 
 
@@ -148,11 +157,11 @@ check %>%
 # Notar que el latent heat flux es la multiplicacion de
 # evapotranspiracion * mil
 
-check %>% 
-  # filter(eva_plus == "high") %>% 
-  ggplot(aes(x = evapotranspiration, y = latent_heat_flux, colour = day)) +
-  geom_jitter(alpha = 0.3, size = 2) +
-  theme_light()
+# check %>% 
+#   # filter(eva_plus == "high") %>% 
+#   ggplot(aes(x = evapotranspiration, y = latent_heat_flux, colour = day)) +
+#   geom_jitter(alpha = 0.3, size = 2) +
+#   theme_light()
 ```
 
 ### Exploration of other variables behaviour trough dates availables
@@ -209,24 +218,24 @@ Just to understand evapotranspiration behaviour against other variables
 ```{r}
 carbon_tower_streams %>% 
   mutate(date = ymd_hms(date_time)) %>%
-  ggplot(aes(x = evapotranspiration, 
-             y = net_ecosystem_exchange_mmol_m_2_s_1 )) +
+  ggplot(aes(y = evapotranspiration, 
+             x = net_ecosystem_exchange_mmol_m_2_s_1 )) +
   geom_point() +
   geom_smooth(method = "lm") +
   theme_light()
 
 carbon_tower_streams %>% 
   mutate(date = ymd_hms(date_time)) %>%
-  ggplot(aes(x = evapotranspiration, 
-             y = latent_heat_flux)) +
+  ggplot(aes(y = evapotranspiration, 
+             x = latent_heat_flux)) +
   geom_point() +
   geom_smooth(method = "lm") +
   theme_light()
 
 carbon_tower_streams %>% 
   mutate(date = ymd_hms(date_time)) %>%
-  ggplot(aes(x = evapotranspiration, 
-             y = ambient_water_vapor_mass_density)) +
+  ggplot(aes(y = evapotranspiration, 
+             x = ambient_water_vapor_mass_density)) +
   geom_point() +
   geom_smooth(method = "lm") +
   theme_light()
@@ -306,8 +315,6 @@ evapotranspiration %>%
   select(latent_heat_flux, evapotranspiration) %>% 
   head(20) %>% 
   gt()
-
-
 ```
 
 ### Exploratory visualizations from eddy
@@ -326,8 +333,58 @@ evapotranspiration %>%
   theme_light() +
   theme(axis.text.x = element_text(angle = 75, h = 1)) +
   labs(title = "Evapotranspiration carbon tower Santa Rosa",
+       subtitle = "Al the datapoints available",
        x = "Date", y = "Evapotranspiration kg m-2 s-1")
 ```
+
+```{r}
+plot_evapotranspiration <- function(data, year) {
+  data %>%
+    mutate(date = ymd_hms(date_time),
+           year = year(date_time)) %>%
+    # filter values above 0.05
+    filter(evapotranspiration < 0.02 & evapotranspiration > -0.02) %>%
+    filter(year == !!year) %>%
+    ggplot(aes(x = date_time, y = evapotranspiration)) +
+    geom_point(alpha = 0.5) +
+    # geom_line() +
+    scale_x_datetime(date_labels = "%b", breaks = "months") +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 75, h = 1)) +
+    labs(title = "Evapotranspiration carbon tower Santa Rosa",
+         subtitle = paste("With all the datapoints available for", year),
+         x = "Date", y = "Evapotranspiration kg m-2 s-1")
+}
+
+## Get years
+years <- evapotranspiration %>% 
+  transmute(year = year(date_time)) %>% 
+  distinct() %>% 
+  pull()
+
+# Map to get all plots
+map(.x = years, .f = function(plots) {
+  evapotranspiration %>% 
+    plot_evapotranspiration(year = plots)
+})
+```
+
+## Principe tower eddy
+
+In order to understand the structure of the data set please check the
+**DICTIONARY file**
+
+**Note** The data available in enviro-net from this tower does not contains
+`stream data`. But it does have the variable `air_temperature`
+
+### Evapotranspiracion calculation with bigleafR
+
+<!-- For bigleafR function we need latent heat and air temperature with -->
+<!-- LE of 200 Wm-2 and air temperature of 25degC `LE.to.ET(200, 25)` -->
+
+
+
+
 
 # Preguntas
 
@@ -345,12 +402,16 @@ evapotranspiration %>%
  los papers de R)
  - Al calcular la evapotranspiración buscamos relacionarla con otras
  variables o la idea es buscar fenómenos como sequías, temporales etc?
- - ¿Dónde puedo ver las unidades en que están las mediciones?
+ - ¿Dónde puedo ver las unidades en que están las mediciones? con steve puedo
+ averiguar
  - Pregunta para reunión más larga: ¿Cuál es el proceso de los datos desde
  los sensores de las torres hasta environet?
  - Ver los datos de stream donde la evapotranspiracion es la division de
  latent heat flux en mil.
  - ¿La temperatura del aire es la que obtengo con el mean_thermocouple_temp?
+   - Esto lo puedo obtener con los datos de otras torres.
+   
+dividir grafico por estaciones: paper de ian donde saca las fechas.
 
 ## Notas
 
