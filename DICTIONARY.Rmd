@@ -32,6 +32,8 @@ carbon_tower_streams <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacast
 
 carbon_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512.csv") %>% 
   clean_names()
+
+principe_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_PrincipeTower(New)_EddyCo._CampbellCR3000(2)_20151213_20190622.csv")
 ```
 
 # 
@@ -100,3 +102,17 @@ in the image below:
 create_dictionary(carbon_tower_eddy) %>% 
   gt()
 ```
+
+# Principe tower data eddy covariance
+
+
+<br>
+![](img/principe_1.png)
+![](img/principe_2.png)
+</br>
+
+```{r, message=FALSE}
+create_dictionary(principe_tower_eddy) %>% 
+  gt()
+```
+
