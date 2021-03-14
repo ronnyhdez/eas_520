@@ -5,14 +5,11 @@ author: "Ronny Hernández Mora"
 date: "2/27/2021"
 always_allow_html: yes
 output:
-  html_document:
+  rmdformats::downcute:
     code_folding: hide
-    self_contained: true
-    number_sections: no
-    theme: spacelab
-    toc: yes
-    toc_float:
-      collapsed: false
+    fig_width: 8
+    fig_height: 4
+    use_bookdown: true
 editor_options:
   chunk_output_type: console
 ---
@@ -29,10 +26,24 @@ library(lubridate)
 library(gt)
 library(tidyr)
 library(purrr)
+library(rmdformats)
+
+# Number output options
+options(scipen = 20)
+options(Sys.getlocale("LC_CTYPE"))
 ```
 
 # Import data
 
+We are going to import three datasets that comes from the Enviro-Net open-data
+platform. This data sets are:
+
+ - carbon_tower_streams: Data from the Carbon Tower that it's from the streams
+ sensor station
+ - carbon_tower_eddy: Data from the Carbon Tower that it's from the Eddy Co.
+ sensor station
+ - principe_tower_eddy: Data from the Principe Tower that it's from the Eddy Co.
+ sensor station
 ```{r}
 carbon_tower_streams <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_Streams_Streams(12345)_20181228_20190128.csv") %>% 
   clean_names()
@@ -44,7 +55,7 @@ principe_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste
   clean_names()
 ```
 
-## Carbon tower streams
+# carbon_tower_streams EDA
 
 In order to understand the structure of the data set please check the
 **DICTIONARY file**
@@ -52,7 +63,7 @@ In order to understand the structure of the data set please check the
 **Note** Even if you select a date range from 2013 to present in the 
 enviro-net portal, there are just two months available to retrieve.
 
-### Evapotranspiration EDA from streams
+## Evapotranspiration EDA from streams
 
 First we check the months and years available in the data set: 
 ```{r}
@@ -171,7 +182,7 @@ check %>%
 #   theme_light()
 ```
 
-### Exploration of other variables behaviour trough dates availables
+## Exploration of other variables behaviour trough dates availables
 
 This are some plots to explore and understand the behaviour of other variables
 in the dataset `carbon_tower_streams` trough time.
@@ -219,7 +230,7 @@ carbon_tower_streams %>%
        x = "Date", y = "Net ecosystem exchange mmol m2 s1")
 ```
 
-### Relations between variables
+## Relations between variables
 
 Just to understand evapotranspiration behaviour against other variables
 ```{r}
@@ -254,7 +265,7 @@ carbon_tower_streams %>%
 #   mutate(day_nigth = ifelse()) %>%
 ```
 
-## Carbon tower eddy
+# carbon_tower_eddy eda
 
 In order to understand the structure of the data set please check the
 **DICTIONARY file**
@@ -317,7 +328,7 @@ eddy %>%
   theme(axis.text.x = element_text(angle = 70, h = 1))
 ```
 
-### Evapotranspiracion calculation with bigleafR
+## Evapotranspiracion calculation with bigleafR
 
 <!-- For bigleafR function we need latent heat and air temperature with -->
 <!-- LE of 200 Wm-2 and air temperature of 25degC `LE.to.ET(200, 25)` -->
@@ -339,12 +350,22 @@ with the results obtained using the bigleafR package:
 evapotranspiration %>% 
   select(latent_heat_flux, evapotranspiration) %>% 
   head(20) %>% 
-  gt()
+  gt() %>% 
+  tab_header(
+    title = md("**Comparison of Latent Heat Flux with Evapotranspiration**"),
+    subtitle = "For the Carbon Tower eddy data"
+  ) %>% 
+  tab_footnote(
+     footnote = "Shows only the first 20 observations",
+     locations = cells_column_labels(
+       columns = vars(latent_heat_flux, evapotranspiration)
+     )
+  )
 ```
 
-### Exploratory visualizations from eddy
+## Exploratory visualizations from eddy
 
- - Plot with al the data points of evapotranspiration from 2013 to 2019
+ - Plot with all the evapotranspiration data points from 2013 to 2019
  - There is no data for 2018 and only 3 months for 2019
 ```{r}
 evapotranspiration %>% 
@@ -394,7 +415,7 @@ map(.x = years, .f = function(plots) {
 })
 ```
 
-## Principe tower eddy
+# principe_tower_eddy EDA
 
 In order to understand the structure of the data set please check the
 **DICTIONARY file**
@@ -412,9 +433,27 @@ eddy <- principe_tower_eddy %>%
 
 # Check available dates in the data set
 eddy %>% 
-  group_by(year(date_time), month(date_time)) %>% 
+  group_by(year(date_time), month(date_time, 
+                                  label = TRUE,
+                                  locale = Sys.getlocale("LC_CTYPE"))) %>% 
   tally() %>% 
-  gt()
+  rename(
+    Year = `year(date_time)`,
+    Month = `month(date_time, label = TRUE, locale = Sys.getlocale("LC_CTYPE"))`,
+    Observations = "n"
+  ) %>% 
+  gt() %>% 
+  tab_header(
+    title = md("**Total of observations per year and month**"),
+    subtitle = ("For the Principe tower eddy data")
+  ) %>% 
+  fmt_number(columns = vars(Observations),
+             decimals = 0,
+             use_seps = TRUE) %>% 
+  data_color(
+    columns = vars(Month),
+    colors = scales::col_factor("Spectral", domain = NULL)
+  )
 
 # Por mes agregado por año
 eddy %>% 
@@ -441,7 +480,7 @@ eddy %>%
   theme(axis.text.x = element_text(angle = 70, h = 1))
 ```
 
-### Evapotranspiracion calculation with bigleafR
+## Evapotranspiracion calculation with bigleafR
 
 <!-- For bigleafR function we need latent heat and air temperature with -->
 <!-- LE of 200 Wm-2 and air temperature of 25degC `LE.to.ET(200, 25)` -->
@@ -454,12 +493,22 @@ evapotranspiration <- eddy %>%
 
 ```{r}
 evapotranspiration %>% 
-  select(latent_heat_flux, evapotranspiration, air_temperature) %>% 
+  select(latent_heat_flux, evapotranspiration) %>% 
   head(20) %>% 
-  gt()
+  gt() %>% 
+  tab_header(
+    title = md("**Comparison of Latent Heat Flux with Evapotranspiration**"),
+    subtitle = "For the Principe tower eddy data"
+  ) %>% 
+  tab_footnote(
+     footnote = "Shows only the first 20 observations",
+     locations = cells_column_labels(
+       columns = vars(latent_heat_flux, evapotranspiration)
+     )
+  )
 ```
 
-### Exploratory visualizations from eddy
+## Exploratory visualizations from eddy
 
  - Plot with al the data points of evapotranspiration from 2013 to 2019
  - There is no data for 2018 and only 3 months for 2019
@@ -474,12 +523,12 @@ evapotranspiration %>%
   scale_x_datetime(date_labels = "%b", breaks = "months") +
   theme_light() +
   theme(axis.text.x = element_text(angle = 75, h = 1)) +
-  labs(title = "Evapotranspiration carbon tower Santa Rosa",
+  labs(title = "Evapotranspiration Principe tower Santa Rosa",
        subtitle = "Al the datapoints available",
        x = "Date", y = "Evapotranspiration kg m-2 s-1")
 ```
 
-```{r}
+```{r, message = FALSE}
 plot_evapotranspiration <- function(data, year) {
   data %>%
     mutate(date = ymd_hms(date_time),
@@ -493,7 +542,7 @@ plot_evapotranspiration <- function(data, year) {
     scale_x_datetime(date_labels = "%b", breaks = "months") +
     theme_light() +
     theme(axis.text.x = element_text(angle = 75, h = 1)) +
-    labs(title = "Evapotranspiration carbon tower Santa Rosa",
+    labs(title = "Evapotranspiration Principe tower Santa Rosa",
          subtitle = paste("With all the datapoints available for", year),
          x = "Date", y = "Evapotranspiration kg m-2 s-1")
 }
@@ -511,36 +560,12 @@ map(.x = years, .f = function(plots) {
 })
 ```
 
-# Preguntas
+# Notes on calculating real evapotranspiration
 
- - Idea es usar variable evapotranspiración del conjunto `carbon_tower_streams`
- o calcularla de alguna manera con los datos del conjunto `carbon_tower_flux`
-   - Si debo de calcularla del último, ¿cuál es la manera correcta? 
-   Referir a funciones de paquete `bigleafR`
- - En las instrucciones dadas por Arturo, dice que debo de hacer: "estimation of
- real evapotranspiration using eddy covariance systems and use Enviro-Net 
- generated data to produce a code in R that will be able to estimate 
- evapotranspiration", lo que me lleva a la pregunta si ¿es únicamente un proceso
- de R con la revisión de literatura o debo de realizar un análisis estadístico
- para validar algún fenónemo? (revisar efectos climáticos de sequía por ejemplo 
- o solo revisar si con R podemos calcular evapotranspiración, algo similar a
- los papers de R)
- - Al calcular la evapotranspiración buscamos relacionarla con otras
- variables o la idea es buscar fenómenos como sequías, temporales etc?
- - ¿Dónde puedo ver las unidades en que están las mediciones? con steve puedo
- averiguar
- - Pregunta para reunión más larga: ¿Cuál es el proceso de los datos desde
- los sensores de las torres hasta environet?
- - Ver los datos de stream donde la evapotranspiracion es la division de
- latent heat flux en mil.
- - ¿La temperatura del aire es la que obtengo con el mean_thermocouple_temp?
-   - Esto lo puedo obtener con los datos de otras torres.
-   
-dividir grafico por estaciones: paper de ian donde saca las fechas.
+ - It looks that the function `LE.to.ET` from the `bigleaf` R package calculates
+ potential evapotranspiration rather than real evapotranspiration. My guess is
+ because we only need Latent Heat Flux and Air Temperature to calculate this, but
+ the problem is that at least in Santa Rosa we have a dry season were there is
+ almost no rain, and if there is no water, there is not going to be evaporation
+ and transpiration.
 
-## Notas
-
-Evapotranspiration can be computed as reference, potential, or actual 
-evapotranspiration.   Reference evapotranspiration is that from a grass surface 
-that is well-watered.  Potential evapotranspiration is that from a surface that 
-has unlimited water (such as a lake). Tomado de (aquí)[https://www.usgs.gov/centers/car-fl-water/science/reference-and-potential-evapotranspiration?qt-science_center_objects=0#qt-science_center_objects]
