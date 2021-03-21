@@ -55,6 +55,10 @@ principe_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste
   clean_names()
 ```
 
+## Notes on datasets
+ 
+  - All datapoints are on 30 min intervals
+
 # carbon_tower_streams EDA
 
 In order to understand the structure of the data set please check the
@@ -96,8 +100,23 @@ carbon_tower_streams %>%
   scale_x_datetime(date_labels = "%d-%b-%Y",  date_breaks = "1 day") +
   theme_light() +
   theme(axis.text.x = element_text(angle = 90)) +
-  labs(title = "Evapotranspiration carbon tower Santa Rosa",
+  labs(title = "Evapotranspiration from the Carbon tower in Santa Rosa",
+       subtitle = "Data from the streams sensor station that includes the
+       evapotranspiration calculation",
        x = "Date", y = "Evapotranspiration kg m-2 s-1")
+
+## Para informe
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = evapotranspiration)) +
+  geom_point() +
+  # Si tenemos datetime, cambiamos el scale_x
+  scale_x_datetime(date_labels = "%d-%b-%Y",  date_breaks = "1 day") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(x = "Date", y = "Evapotranspiration kg m-2 s-1")
+
+
 
 # day <- interval(hms("06:00:00"), hms("17:30:00"))
 # carbon_tower_streams %>%
@@ -106,7 +125,6 @@ carbon_tower_streams %>%
 #                       "dia", "noche")) %>%
 #   select(date_time, day) %>%  View()
 ```
-
 
 ```{r}
 carbon_tower_streams %>% 
@@ -198,6 +216,17 @@ carbon_tower_streams %>%
   theme(axis.text.x = element_text(angle = 90)) +
   labs(title = "Water vapor mass density carbon tower Santa Rosa",
        x = "Date", y = "Water vapor mass density carbon")
+
+## Para el informe
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = ambient_water_vapor_mass_density)) +
+  geom_line() +
+  # Si tenemos datetime, cambiamos el scale_x
+  scale_x_datetime(date_labels = "%d-%b-%Y",  date_breaks = "1 day") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(x = "Date", y = "Water vapor mass density kg m-3")
 ```
 
 
@@ -213,6 +242,17 @@ carbon_tower_streams %>%
   theme(axis.text.x = element_text(angle = 90)) +
   labs(title = "Latent heat flux carbon tower Santa Rosa",
        x = "Date", y = "Latent heat flux")
+
+## Para informe
+carbon_tower_streams %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = latent_heat_flux)) +
+  geom_line() +
+  # Si tenemos datetime, cambiamos el scale_x
+  scale_x_datetime(date_labels = "%d-%b-%Y",  date_breaks = "1 day") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(x = "Date", y = "Latent heat flux W m-2")
 ```
 
 
@@ -312,6 +352,7 @@ eddy %>%
              fill = as.factor(`year(date_time)`))) +
   geom_bar(stat = "identity") +
   scale_fill_viridis_d() +
+  labs(x = "Month", y = "Total observations", fill = "Year") +
   theme_light(base_size = 12)
 
 # Separados por mes y por año
@@ -324,7 +365,8 @@ eddy %>%
              fill = as.factor(year(date)))) +
   geom_bar(stat = "identity") +
   scale_fill_viridis_d() +
-  theme_light(base_size = 12) +
+  labs(x = "Month", y = "Total observations", fill = "Year") +
+  theme_light(base_size = 21) +
   theme(axis.text.x = element_text(angle = 70, h = 1))
 ```
 
@@ -338,8 +380,10 @@ can use Latent Heat Flux (W m-2) with Air Temperature (C) to obtain
 evapotranspiracion (kg m-2 s-1)
 ```{r}
 evapotranspiration <- eddy %>% 
-  mutate(evapotranspiration = LE.to.ET(latent_heat_flux,
-                                       mean_thermocouple_temp))
+  mutate(evapotranspiration_kg = LE.to.ET(latent_heat_flux,
+                                          mean_thermocouple_temp)) %>% 
+  # Transform units
+  mutate(evapotranspiration_mol = kg.to.mol((evapotranspiration_kg) * 1000))
 ```
 
 With the dataset `carbon_tomer_streams` we saw that there is a strong
@@ -371,16 +415,31 @@ evapotranspiration %>%
 evapotranspiration %>% 
   mutate(date = ymd_hms(date_time)) %>%
   # filter values above 0.05
-  filter(evapotranspiration < 0.02 & evapotranspiration > -0.02) %>% 
+  filter(evapotranspiration_mol < 1000 & evapotranspiration_mol > -500) %>%
   # filter(year(date_time) == 2013) %>% 
-  ggplot(aes(x = date_time, y = evapotranspiration)) +
+  ggplot(aes(x = date_time, y = evapotranspiration_mol)) +
   geom_point(alpha = 0.5) +
   scale_x_datetime(date_labels = "%b", breaks = "months") +
   theme_light() +
   theme(axis.text.x = element_text(angle = 75, h = 1)) +
+    labs(x = "Date", y = "Evapotranspiration mmol m-2 s-1")
   labs(title = "Evapotranspiration carbon tower Santa Rosa",
        subtitle = "Al the datapoints available",
-       x = "Date", y = "Evapotranspiration kg m-2 s-1")
+       x = "Date", y = "Evapotranspiration mmol m-2 s-1")
+  
+## Para el informe
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  # filter values above 0.05
+  filter(evapotranspiration_mol < 1000 & evapotranspiration_mol > -500) %>%
+  # filter(year(date_time) == 2013) %>% 
+  ggplot(aes(x = date_time, y = evapotranspiration_mol)) +
+  geom_point(alpha = 0.5) +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+    labs(x = "Date", y = "Evapotranspiration mmol m-2 s-1")
+  labs(x = "Date", y = "Evapotranspiration mmol m-2 s-1")
 ```
 
 ```{r}
@@ -429,7 +488,7 @@ eddy <- principe_tower_eddy %>%
   select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
          mean_co2_concentration, mean_h2o_vapour_concentration, 
          mean_moist_air_density, mean_thermocouple_temp,
-         air_temperature)
+         air_temperature, humidity, saturation_vapour_pressure_k_pa)
 
 # Check available dates in the data set
 eddy %>% 
@@ -476,7 +535,8 @@ eddy %>%
              fill = as.factor(year(date)))) +
   geom_bar(stat = "identity") +
   scale_fill_viridis_d() +
-  theme_light(base_size = 12) +
+  theme_light(base_size = 21) +
+  labs(x = "Date", y = "Total observations", fill = "Year") +
   theme(axis.text.x = element_text(angle = 70, h = 1))
 ```
 
@@ -560,7 +620,38 @@ map(.x = years, .f = function(plots) {
 })
 ```
 
-# Notes on calculating real evapotranspiration
+# Evapotranpiration
+
+Calculation of Potential Evapotranspiration
+
+
+#' @param data      Data.frame or matrix containing all required variables; optional
+#' @param Tair      Air temperature (degC)
+#' @param pressure  Atmospheric pressure (kPa)
+#' @param Rn        Net radiation (W m-2)
+#' @param G         Ground heat flux (W m-2); optional
+#' @param S         Sum of all storage fluxes (W m-2); optional
+#' @param VPD       Vapor pressure deficit (kPa); only used if \code{approach = "Penman-Monteith"}.
+#' @param Ga        Aerodynamic conductance to heat/water vapor (m s-1); only used if \code{approach = "Penman-Monteith"}.
+#' @param approach  Approach used. Either \code{"Priestley-Taylor"} (default), or \code{"Penman-Monteith"}.
+#' @param alpha     Priestley-Taylor coefficient; only used if \code{approach = "Priestley-Taylor"}.
+#' @param Gs_pot    Potential/maximum surface conductance (mol m-2 s-1); defaults to 0.6 mol m-2 s-1;
+#'                  only used if \code{approach = "Penman-Monteith"}.
+#' @param missing.G.as.NA  if \code{TRUE}, missing G are treated as \code{NA}s, otherwise set to 0. 
+#' @param missing.S.as.NA  if \code{TRUE}, missing S are treated as \code{NA}s, otherwise set to 0. 
+#' @param Esat.formula  Optional: formula to be used for the calculation of esat and the slope of esat.
+#'                      One of \code{"Sonntag_1990"} (Default), \code{"Alduchov_1996"}, or \code{"Allen_1998"}.
+#'                      See \code{\link{Esat.slope}}. 
+#' @param constants cp - specific heat of air for constant pressure (J K-1 kg-1) \cr
+#'                  eps - ratio of the molecular weight of water vapor to dry air \cr
+#'                  Pa2kPa - conversion pascal (Pa) to kilopascal (kPa) \cr
+#'                  Rd - gas constant of dry air (J kg-1 K-1) (only used if \code{approach = "Penman-Monteith"}) \cr
+#'                  Rgas - universal gas constant (J mol-1 K-1) (only used if \code{approach = "Penman-Monteith"}) \cr
+#'                  Kelvin - conversion degree Celsius to Kelvin (only used if \code{approach = "Penman-Monteith"}) \cr
+
+
+
+## Notes on calculating real evapotranspiration
 
  - It looks that the function `LE.to.ET` from the `bigleaf` R package calculates
  potential evapotranspiration rather than real evapotranspiration. My guess is
@@ -568,4 +659,145 @@ map(.x = years, .f = function(plots) {
  the problem is that at least in Santa Rosa we have a dry season were there is
  almost no rain, and if there is no water, there is not going to be evaporation
  and transpiration.
+ - From the `REddyProc` package, it says that the function from the `bigleaf`
+ to calculate evapotranspiration, needs to be converted to mmol/m2/s because
+ it's on Kg/m2/s units. This can be done by the following:
+```{r, eval = FALSE}
+LE <- seq(300, 500, by = 50)
+Tair <- 25
+
+ETkg <- LE.to.ET(LE, Tair)
+(ETmmol <- kg.to.mol(ETkg) * 1000)
+```
+ 
+```{r}
+evapotranspiration <- eddy %>% 
+  mutate(evapotranspiration_kg = LE.to.ET(latent_heat_flux,
+                                       air_temperature)) %>% 
+  # Transform units
+  mutate(evapotranspiration_mol = kg.to.mol((evapotranspiration_kg) * 1000))
+```
+
+```{r}
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  # filter values above 0.05
+  # filter(evapotranspiration < 0.02 & evapotranspiration > -0.02) %>% 
+  # filter(year(date_time) == 2013) %>% 
+  ggplot(aes(x = date_time, y = evapotranspiration_mol)) +
+  geom_point(alpha = 0.5) +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Evapotranspiration Principe tower Santa Rosa",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "Evapotranspiration mmol m-2 s-1")
+
+## Para el informe
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  # filter values above 0.05
+  # filter(evapotranspiration < 0.02 & evapotranspiration > -0.02) %>% 
+  # filter(year(date_time) == 2013) %>% 
+  ggplot(aes(x = date_time, y = evapotranspiration_mol)) +
+  geom_point(alpha = 0.5) +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(x = "Date", y = "Evapotranspiration mmol m-2 s-1")
+```
+
+# Check other variables related with water for Principe tower
+
+In order to check relations of evapotranspiration with other variables related
+with H2O, we are including some figures to check the variation through time
+for the principe tower
+
+## Mean H2O Vapour Concentration
+
+```{r}
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = mean_h2o_vapour_concentration)) +
+  geom_point(alpha = 0.5, color = "#2C974B", shape = 1, size = .5) +
+  geom_smooth(color = "#75AADB") +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_classic(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "mean_h2o_vapour_concentration Principe tower Santa Rosa",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "mean_h2o_vapour_concentration")
+```
+
+## Air Temperature
+
+```{r}
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = air_temperature)) +
+  geom_point(alpha = 0.5, color = "#2C974B", shape = 1, size = .5) +
+  geom_smooth(color = "#75AADB") +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_classic(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "air_temperature Principe tower Santa Rosa",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "air_temperature")
+```
+
+## Humidity
+
+```{r}
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = humidity)) +
+  geom_point(alpha = 0.5, color = "#2C974B", shape = 1, size = .5) +
+  geom_smooth(color = "#75AADB") +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_classic(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "humidity Principe tower Santa Rosa",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "humidity")
+```
+
+## Saturation Vapour Pressure (kPA)
+
+```{r}
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = saturation_vapour_pressure_k_pa)) +
+  geom_point(alpha = 0.5, color = "#2C974B", shape = 1, size = .5) +
+  geom_smooth(color = "#75AADB") +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_classic(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "saturation_vapour_pressure_k_pa Principe tower Santa Rosa",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "saturation_vapour_pressure_k_pa")
+```
+
+## Mean Moist Air Density
+ 
+```{r}
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = mean_moist_air_density)) +
+  geom_point(alpha = 0.5, color = "#2C974B", shape = 1, size = .5) +
+  geom_smooth(color = "#75AADB") +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_classic(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "mean_h2o_vapour_concentration Principe tower Santa Rosa",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "mean_h2o_vapour_concentration")
+```
+
+# Session info
+
+For this analysis, the setup used was:
+
+```{r}
+sessionInfo()
+```
 
