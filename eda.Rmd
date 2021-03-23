@@ -55,7 +55,7 @@ principe_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste
   clean_names()
 ```
 
-## Notes on datasets
+**Notes on datasets**
  
   - All datapoints are on 30 min intervals
 
