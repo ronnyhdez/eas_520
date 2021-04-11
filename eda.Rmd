@@ -27,11 +27,23 @@ library(gt)
 library(tidyr)
 library(purrr)
 library(rmdformats)
+library(skimr)
+library(stringr)
+library(corrplot)
 
 # Number output options
 options(scipen = 20)
 options(Sys.getlocale("LC_CTYPE"))
 ```
+
+# Workflow
+
+Using eddy covariance open-data from Enviro-Net platform and the R
+programming language to estimate real evapotranspiration in the tropical
+dry forest
+
+
+![](img/workflow.jpg)
 
 # Import data
 
@@ -55,7 +67,7 @@ principe_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste
   clean_names()
 ```
 
-## Notes on datasets
+**Notes on datasets**
  
   - All datapoints are on 30 min intervals
 
@@ -712,6 +724,285 @@ evapotranspiration %>%
        subtitle = "Al the datapoints available",
        x = "Date", y = "Evapotranspiration mmol m-2 s-1")
 ```
+
+# Comparison between data sets with error/no error
+
+On the enviro-net platform we have the option to create a filter based on
+the allowable values for the sensors:
+
+![](img/options.png)
+I repeated the selection done before with the only difference that this time
+was with the option `Error Removal` selected.
+
+Due to the lack of information from enviro-net of what those ranges are, we
+can skim through the data and try to validate those ranges
+
+```{r}
+# Read carbon tower data with error removal
+carbon_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512_error_removal.csv") %>% 
+  clean_names()
+
+# Read principe tower data with error removal
+principe_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_PrincipeTower(New)_EddyCo._CampbellCR3000(2)_20151213_20190622_error_removal.csv") %>% 
+  clean_names()
+
+# skim the data:
+skim(carbon_tower_eddy_error_removal)
+```
+
+Lo que tenemos en comparasion, es que no se pierden tantos datos. Por ejemplo 
+para la variable `latent_heat_flux` con el rango de valores correctos terminamos
+con 7436 NA's mientras que con los errores de rango tenemos 7421 NA's.
+
+Las demás variables se encuentran en una situación familiar (Revisar diccionario
+de datos y comparar con el skim anterior)
+
+Podemos usar el dataset con las correcciones dadas por enviro-net.
+
+## Unite data sets to fill gaps
+
+I selected the variables with 
+
+```{r}
+carbon_no_error <- carbon_tower_eddy_error_removal %>% 
+    select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "carbon_tower")
+
+principe_no_error <- principe_tower_eddy_error_removal %>% 
+    select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "principe_tower")
+         # air_temperature, humidity, saturation_vapour_pressure_k_pa)
+
+eddy_complete_no_error <- rbind(carbon_no_error, principe_no_error)
+```
+
+## Comparison of data values per dataset
+
+```{r}
+eddy_complete_no_error %>% 
+  group_by(zoo::as.yearmon(date_time), tower) %>% 
+  tally() %>% 
+  rename("date" = `zoo::as.yearmon(date_time)`, "total" = "n") %>% 
+  ggplot(aes(x = as.factor(date),
+             y = total, 
+             fill = tower)) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis_d() +
+  theme_light(base_size = 21) +
+  labs(x = "Date", y = "Total observations", fill = "Tower",
+       title = "Total data points per tower",
+       subtitle = "Grouped by month and year for all the date range available",
+       caption = "Data retrieved from enviro-net https://www.enviro-net.org") +
+  theme(axis.text.x = element_text(angle = 70, h = 1))
+```
+
+## Check if there are differences between days 
+
+september and october 2017 and april 2019 are dates on wich observations from
+both towers are similar. We can compare if the values from both towers are
+similar or differ among them
+
+```{r}
+# setiembre
+eddy_complete_no_error %>% 
+  mutate(date = zoo::as.yearmon(date_time)) %>% 
+  mutate(date = as.character(date)) %>% 
+  filter(date == "sep 2017") %>% 
+  ggplot(aes(x = date_time, y = latent_heat_flux, color = tower)) +
+  geom_line() +
+  scale_color_viridis_d() +
+  theme_bw() +
+  labs(title = "Spetember 2017")
+
+# octubre
+eddy_complete_no_error %>% 
+  mutate(date = zoo::as.yearmon(date_time)) %>% 
+  mutate(date = as.character(date)) %>% 
+  filter(date == "oct 2017") %>% 
+  ggplot(aes(x = date_time, y = latent_heat_flux, color = tower)) +
+  geom_line() +
+  scale_color_viridis_d() +
+  theme_bw() +
+  labs(title = "October 2017")
+
+# octubre
+eddy_complete_no_error %>% 
+  mutate(date = zoo::as.yearmon(date_time)) %>% 
+  mutate(date = as.character(date)) %>% 
+  filter(date == "oct 2017") %>% 
+  ggplot(aes(x = date_time, y = latent_heat_flux, color = tower)) +
+  geom_line() +
+  scale_color_viridis_d() +
+  theme_bw() +
+  labs(title = "October 2017")
+
+# abril
+eddy_complete_no_error %>% 
+  mutate(date = zoo::as.yearmon(date_time)) %>% 
+  mutate(date = as.character(date)) %>% 
+  filter(date == "abr 2019") %>% 
+  ggplot(aes(x = date_time, y = latent_heat_flux, color = tower)) +
+  geom_line() +
+  scale_color_viridis_d() +
+  theme_bw() +
+  labs(title = "abr 2019")
+
+## Comparar latent heat flux de carbon tower con latent heat flux de principe
+```
+
+The date with complete values for both towers is from the month of april 2019.
+We want to compare values from both towers to check statiscally if there are
+diference in order to decide if we can values from both towers as one
+
+```{r}
+library(tidyr)
+d <- eddy_complete_no_error %>% 
+  select(tower, latent_heat_flux, date_time) %>% 
+  filter(tower == "carbon_tower") %>% 
+  mutate(fecha = zoo::as.yearmon(date_time)) %>% 
+  filter(fecha == "abr 2019") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  mutate(time = (hm(time)))
+
+c <- eddy_complete_no_error %>% 
+  select(tower, latent_heat_flux, date_time) %>% 
+  filter(tower == "principe_tower") %>% 
+  mutate(fecha = zoo::as.yearmon(date_time)) %>% 
+  filter(fecha == "abr 2019") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  mutate(time = (hm(time)))
+
+# Si solo cambio tiempo, no logro pegar fechas, mejor cambiar todo a date_time
+# con segundos en cero
+
+f <- eddy_complete_no_error %>% 
+  select(tower, latent_heat_flux, date_time) %>% 
+  filter(tower == "principe_tower") %>% 
+  mutate(fecha = zoo::as.yearmon(date_time)) %>% 
+  filter(fecha == "abr 2019") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time))
+
+g <- eddy_complete_no_error %>% 
+  select(tower, latent_heat_flux, date_time) %>% 
+  filter(tower == "carbon_tower") %>% 
+  mutate(fecha = zoo::as.yearmon(date_time)) %>% 
+  filter(fecha == "abr 2019") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time))
+
+check <- g %>% 
+  left_join(f, by = "date_time")
+
+check %>% 
+  # pivot_wider(-time, names_from = tower, values_from = c(latent_heat_flux)) %>% 
+  ggplot(aes(x = latent_heat_flux.x , y = latent_heat_flux.y)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+# Probar con todos los datos, no solo abril
+h <- eddy_complete_no_error %>% 
+  select(tower, latent_heat_flux, date_time) %>% 
+  filter(tower == "principe_tower") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time))
+
+i <- eddy_complete_no_error %>% 
+  select(tower, latent_heat_flux, date_time) %>% 
+  filter(tower == "carbon_tower") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time))
+
+check_all <- i %>% 
+  left_join(h, by = "date_time")
+
+check %>% 
+  ggplot(aes(x = latent_heat_flux.x , y = latent_heat_flux.y)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+## Correlation between variables from both towers
+
+```{r}
+carbon_only <- eddy_complete_no_error %>% 
+  filter(tower == "principe_tower") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time))
+
+principe_only <- eddy_complete_no_error %>% 
+  filter(tower == "carbon_tower") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time))
+
+eddy_selected <- left_join(carbon_only, principe_only, by = "date_time") %>% 
+  select(-date_time, -tower.x, -tower.y)
+
+# Visualization 1
+corrplot(cor(eddy_selected, use = "na.or.complete"),        # Correlation matrix
+         method = "shade", # Correlation plot method
+         type = "full",    # Correlation plot style (also "upper" and "lower")
+         diag = TRUE,      # If TRUE (default), adds the diagonal
+         tl.col = "black", # Labels color
+         bg = "white",     # Background color
+         title = "",       # Main title
+         col = NULL) 
+
+# Visualization 2
+corrplot.mixed(cor(eddy_selected, use = "na.or.complete"),
+               lower = "number", 
+               upper = "circle",
+               tl.col = "black",
+               tl.pos = "lt")
+
+library(psych)
+
+pairs.panels(eddy_selected,
+             smooth = TRUE,      # If TRUE, draws loess smooths
+             scale = FALSE,      # If TRUE, scales the correlation text font
+             density = TRUE,     # If TRUE, adds density plots and histograms
+             ellipses = TRUE,    # If TRUE, draws ellipses
+             method = "pearson", # Correlation method (also "spearman" or "kendall")
+             pch = 21,           # pch symbol
+             lm = FALSE,         # If TRUE, plots linear fit rather than the LOESS (smoothed) fit
+             cor = TRUE,         # If TRUE, reports correlations
+             jiggle = FALSE,     # If TRUE, data points are jittered
+             factor = 2,         # Jittering factor
+             hist.col = 4,       # Histograms color
+             stars = TRUE,       # If TRUE, adds significance level with stars
+             ci = TRUE) 
+```
+
+# Data aggregation
+
+```{r}
+
+```
+
+
+
+
+
+
+
 
 
 
