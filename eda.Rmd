@@ -28,6 +28,8 @@ library(tidyr)
 library(purrr)
 library(rmdformats)
 library(skimr)
+library(stringr)
+library(corrplot)
 
 # Number output options
 options(scipen = 20)
@@ -902,15 +904,6 @@ g <- eddy_complete_no_error %>%
 check <- g %>% 
   left_join(f, by = "date_time")
 
-# check <- eddy_complete_no_error %>% 
-#   select(tower, latent_heat_flux, date_time) %>% 
-#   filter(tower == "principe_tower") %>% 
-#   mutate(fecha = zoo::as.yearmon(date_time)) %>% 
-#   filter(fecha == "abr 2019") %>% 
-#   separate(date_time, into = c("date", "time"), sep = " ") %>% 
-#   mutate(time = str_sub(time, start = 1, end = 5)) %>% 
-#   mutate(time = (hm(time)))
-
 check %>% 
   # pivot_wider(-time, names_from = tower, values_from = c(latent_heat_flux)) %>% 
   ggplot(aes(x = latent_heat_flux.x , y = latent_heat_flux.y)) +
@@ -918,7 +911,6 @@ check %>%
   geom_smooth(method = "lm")
 
 # Probar con todos los datos, no solo abril
-
 h <- eddy_complete_no_error %>% 
   select(tower, latent_heat_flux, date_time) %>% 
   filter(tower == "principe_tower") %>% 
@@ -944,7 +936,66 @@ check %>%
   geom_smooth(method = "lm")
 ```
 
+## Correlation between variables from both towers
 
+```{r}
+carbon_only <- eddy_complete_no_error %>% 
+  filter(tower == "principe_tower") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time))
+
+principe_only <- eddy_complete_no_error %>% 
+  filter(tower == "carbon_tower") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time))
+
+eddy_selected <- left_join(carbon_only, principe_only, by = "date_time") %>% 
+  select(-date_time, -tower.x, -tower.y)
+
+# Visualization 1
+corrplot(cor(eddy_selected, use = "na.or.complete"),        # Correlation matrix
+         method = "shade", # Correlation plot method
+         type = "full",    # Correlation plot style (also "upper" and "lower")
+         diag = TRUE,      # If TRUE (default), adds the diagonal
+         tl.col = "black", # Labels color
+         bg = "white",     # Background color
+         title = "",       # Main title
+         col = NULL) 
+
+# Visualization 2
+corrplot.mixed(cor(eddy_selected, use = "na.or.complete"),
+               lower = "number", 
+               upper = "circle",
+               tl.col = "black",
+               tl.pos = "lt")
+
+library(psych)
+
+pairs.panels(eddy_selected,
+             smooth = TRUE,      # If TRUE, draws loess smooths
+             scale = FALSE,      # If TRUE, scales the correlation text font
+             density = TRUE,     # If TRUE, adds density plots and histograms
+             ellipses = TRUE,    # If TRUE, draws ellipses
+             method = "pearson", # Correlation method (also "spearman" or "kendall")
+             pch = 21,           # pch symbol
+             lm = FALSE,         # If TRUE, plots linear fit rather than the LOESS (smoothed) fit
+             cor = TRUE,         # If TRUE, reports correlations
+             jiggle = FALSE,     # If TRUE, data points are jittered
+             factor = 2,         # Jittering factor
+             hist.col = 4,       # Histograms color
+             stars = TRUE,       # If TRUE, adds significance level with stars
+             ci = TRUE) 
+```
+
+# Data aggregation
+
+```{r}
+
+```
 
 
 
