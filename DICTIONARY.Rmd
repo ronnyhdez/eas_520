@@ -25,6 +25,7 @@ library(purrr)
 library(tidyr)
 library(gt)
 library(janitor)
+library(skimr)
 
 # Import data
 carbon_tower_streams <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_Streams_Streams(12345)_20181228_20190128.csv") %>% 
@@ -36,7 +37,7 @@ carbon_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_C
 principe_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_PrincipeTower(New)_EddyCo._CampbellCR3000(2)_20151213_20190622.csv")
 ```
 
-# 
+
 ```{r, message=FALSE}
 create_dictionary <- function(data) {
   
@@ -88,6 +89,12 @@ create_dictionary(carbon_tower_streams) %>%
   gt()
 ```
 
+# A more detailed approach to chek the data
+
+```{r}
+skim(carbon_tower_streams)
+```
+
 # Carbon tower data eddy covariance
 
 For this data, we use the enviro-net portal and we selected the options showed
@@ -103,8 +110,13 @@ create_dictionary(carbon_tower_eddy) %>%
   gt()
 ```
 
-# Principe tower data eddy covariance
+# A more detailed approach to chek the data
 
+```{r}
+skim(carbon_tower_eddy)
+```
+
+# Principe tower data eddy covariance
 
 <br>
 ![](img/principe_1.png)
@@ -116,3 +128,8 @@ create_dictionary(principe_tower_eddy) %>%
   gt()
 ```
 
+# A more detailed approach to chek the data
+
+```{r}
+skim(principe_tower_eddy)
+```
