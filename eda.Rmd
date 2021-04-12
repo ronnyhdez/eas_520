@@ -65,11 +65,79 @@ carbon_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_C
 
 principe_tower_eddy <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_PrincipeTower(New)_EddyCo._CampbellCR3000(2)_20151213_20190622.csv") %>% 
   clean_names()
+
+temperature_orig <- read_csv("data/COSTA RICA - Santa Rosa National Park, Guanacaste.csv") %>% 
+  clean_names()
+```
+
+
+```{r}
+temp_1 <- temperature_orig %>%
+  select(-air_temperature_1) %>%
+  filter(!is.na(air_temperature_2)) %>%
+  rename("temperature" = "air_temperature_2")
+
+temp_2 <- temperature_orig %>%
+  select(-air_temperature_2) %>%
+  filter(!is.na(air_temperature_1)) %>%
+  rename("temperature" = "air_temperature_1")
+
+temp_total <- bind_rows(temp_1, temp_2) %>% nrow()
+  
+# Darle vuelta a variables y quitar repetidos que son NA's
+temperature_converted <- temperature_orig %>% 
+  pivot_longer(cols = c("air_temperature_1", "air_temperature_2"),
+               names_to = "temperature") %>% 
+  filter(!is.na(value)) %>% 
+  separate(time_stamp, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  select(-temperature) %>% 
+  rename("temperature" = "value")
+  
+temp_converted <- nrow(temperature_converted)
+
+stopifnot(temp_total == temp_converted)
+rm(temp_total, temp_converted)
 ```
 
 **Notes on datasets**
  
   - All datapoints are on 30 min intervals
+
+# Temperature data
+
+```{r}
+temperature_converted %>% 
+  group_by(zoo::as.yearmon(date_time)) %>% 
+  tally() %>% 
+  rename("date" = `zoo::as.yearmon(date_time)`, "total" = "n") %>% 
+  ggplot(aes(x = as.factor(date),
+             y = total, 
+             fill = as.factor(year(date)))) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis_d() +
+  theme_light(base_size = 21) +
+  labs(x = "Date", y = "Total observations", fill = "Year") +
+  theme(axis.text.x = element_text(angle = 70, h = 1))
+```
+
+```{r}
+temperature_converted %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  # filter values above 0.05
+  # filter(evapotranspiration < 0.02 & evapotranspiration > -0.02) %>% 
+  # filter(year(date_time) == 2013) %>% 
+  ggplot(aes(x = date_time, y = temperature)) +
+  geom_point(alpha = 0.5) +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_light(base_size = 16) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Evapotranspiration Principe tower Santa Rosa",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "Evapotranspiration mmol m-2 s-1")
+```
 
 # carbon_tower_streams EDA
 
@@ -975,29 +1043,134 @@ corrplot.mixed(cor(eddy_selected, use = "na.or.complete"),
 
 library(psych)
 
-pairs.panels(eddy_selected,
-             smooth = TRUE,      # If TRUE, draws loess smooths
-             scale = FALSE,      # If TRUE, scales the correlation text font
-             density = TRUE,     # If TRUE, adds density plots and histograms
-             ellipses = TRUE,    # If TRUE, draws ellipses
-             method = "pearson", # Correlation method (also "spearman" or "kendall")
-             pch = 21,           # pch symbol
-             lm = FALSE,         # If TRUE, plots linear fit rather than the LOESS (smoothed) fit
-             cor = TRUE,         # If TRUE, reports correlations
-             jiggle = FALSE,     # If TRUE, data points are jittered
-             factor = 2,         # Jittering factor
-             hist.col = 4,       # Histograms color
-             stars = TRUE,       # If TRUE, adds significance level with stars
-             ci = TRUE) 
+# pairs.panels(eddy_selected,
+#              smooth = TRUE,      # If TRUE, draws loess smooths
+#              scale = FALSE,      # If TRUE, scales the correlation text font
+#              density = TRUE,     # If TRUE, adds density plots and histograms
+#              ellipses = TRUE,    # If TRUE, draws ellipses
+#              method = "pearson", # Correlation method (also "spearman" or "kendall")
+#              pch = 21,           # pch symbol
+#              lm = FALSE,         # If TRUE, plots linear fit rather than the LOESS (smoothed) fit
+#              cor = TRUE,         # If TRUE, reports correlations
+#              jiggle = FALSE,     # If TRUE, data points are jittered
+#              factor = 2,         # Jittering factor
+#              hist.col = 4,       # Histograms color
+#              stars = TRUE,       # If TRUE, adds significance level with stars
+#              ci = TRUE) 
+```
+
+
+```{r}
+# Botamos los NA porque no queremos que se interpongan en calculos de corr
+eddy_selected <- eddy_selected %>% 
+  drop_na()
+
+cor.test(eddy_selected$latent_heat_flux.x, 
+         eddy_selected$latent_heat_flux.y)
+
+cor.test(eddy_selected$mean_h2o_vapour_concentration.x,
+         eddy_selected$mean_h2o_vapour_concentration.y)
+
+cor.test(eddy_selected$mean_moist_air_density.x ,
+         eddy_selected$mean_moist_air_density.y)
+
+cor.test(eddy_selected$mean_h2o_vapour_concentration.x,
+         eddy_selected$mean_h2o_vapour_concentration.y)
+
+cor.test(eddy_selected$mean_thermocouple_temp.x,
+         eddy_selected$mean_thermocouple_temp.y)
 ```
 
 # Data aggregation
 
-```{r}
+We are going to unite all the observations from both towers. There are months
+were we have only observations from one tower, and there are other periods where
+we have observations from both towers.
 
+At first we need to get rid of second values in order to unite the two
+data sets.
+
+## Steps
+```{r}
+carbon_no_error <- carbon_tower_eddy_error_removal %>% 
+    select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "carbon_tower")
+
+principe_no_error <- principe_tower_eddy_error_removal %>% 
+    select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "principe_tower")
+         # air_temperature, humidity, saturation_vapour_pressure_k_pa)
+
+eddy_complete_no_error <- rbind(carbon_no_error, principe_no_error) %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time))
+
+# Removemos observaciones duplicadas basados en date_time
+check_remove_duplicates <- eddy_complete_no_error %>% 
+  distinct(date_time, .keep_all = TRUE)
+```
+
+```{r}
+# Unidades = kgH2O m−2 d−1
+
+# Unir temperatura
+eddy_temp <- check_remove_duplicates %>% 
+  left_join(temperature_converted, by = "date_time") %>% 
+  filter(!is.na(temperature))
+
+le_eddy_temp <- eddy_temp %>% 
+  mutate(evapotranspiration_kg = LE.to.ET(latent_heat_flux,
+                                          temperature)) %>% 
+  # Transform units
+  mutate(evapotranspiration_mol = kg.to.mol((evapotranspiration_kg) * 1000))
+
+le_grouped <- le_eddy_temp %>% 
+  mutate(date = as.Date(date_time)) %>% 
+  # mutate(check = ymd(date))
+  group_by(ymd(date)) %>% 
+  summarise(
+    mean = mean(evapotranspiration_mol, na.rm = TRUE),
+    total = sum(evapotranspiration_mol, na.rm = TRUE)
+  ) %>% 
+  rename("date" = `ymd(date)`)
 ```
 
 
+```{r}
+le_grouped %>% 
+  mutate(date = ymd(date)) %>%
+  # # filter values above 0.05
+  # filter(evapotranspiration_mol < 1000 & evapotranspiration_mol > -500) %>%
+  # # filter(year(date_time) == 2013) %>% 
+  ggplot(aes(x = date, y = total)) +
+  geom_point(alpha = 0.5) +
+  # scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Total evapotranspiration",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "Evapotranspiration mmol m-2 s-1")
+
+le_grouped %>% 
+  mutate(date = ymd(date)) %>%
+  # # filter values above 0.05
+  # filter(evapotranspiration_mol < 1000 & evapotranspiration_mol > -500) %>%
+  # # filter(year(date_time) == 2013) %>% 
+  ggplot(aes(x = date, y = mean)) +
+  geom_point(alpha = 0.5) +
+  # scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Total evapotranspiration",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "Evapotranspiration mmol m-2 s-1")
+```
 
 
 
