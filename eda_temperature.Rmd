@@ -1,0 +1,47 @@
+---
+title: "EDA Temperature"
+author: "Ronny Hernández Mora"
+date: "2/27/2021"
+always_allow_html: yes
+output:
+  rmdformats::downcute:
+    code_folding: hide
+    fig_width: 12
+    fig_height: 8
+    use_bookdown: true
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(dplyr)
+library(lubridate)
+library(janitor)
+library(readr)
+```
+
+# Data
+
+For this exploration we are using the datasets that are filtered from errors
+using the option in the enviro-net platform.
+
+Also I downloaded the temperature dataset from the sensors in the towers, with
+the following options:
+
+![](img/temp_1.png)
+![](img/temp_2.png)
+
+```{r}
+temperature_orig <- read_csv("data/COSTA RICA - Santa Rosa National Park, Guanacaste.csv") %>% 
+  clean_names()
+
+# Read carbon tower data with error removal
+carbon_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512_error_removal.csv") %>% 
+  clean_names()
+
+# Read principe tower data with error removal
+principe_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_PrincipeTower(New)_EddyCo._CampbellCR3000(2)_20151213_20190622_error_removal.csv") %>% 
+  clean_names()
+```
+
