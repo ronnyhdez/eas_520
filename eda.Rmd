@@ -1172,6 +1172,19 @@ le_grouped %>%
        x = "Date", y = "Evapotranspiration mmol m-2 s-1")
 ```
 
+## Check termocoupled temp with temperature
+
+```{r}
+eddy_temp %>% 
+  drop_na() %>% 
+  filter(temperature > 10) %>% 
+  ggplot(aes(x = mean_thermocouple_temp, y = temperature)) +
+  geom_point()
+
+eddy_temp %>% 
+  select(mean_thermocouple_temp, temperature) %>% 
+  View()
+```
 
 
 

@@ -45,3 +45,22 @@ principe_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalP
   clean_names()
 ```
 
+**Notes on datasets**
+ 
+  - All datapoints are on 30 min intervals
+
+# Temperature values
+
+We have three options to use temperature values:
+
+ - Using the values from `mean_thermocouple_temp`
+ - Using the values from `temperature` variable available in the principe dataset
+ - Using the values from `temperature` from the sensors data set
+ 
+First I want to check how correlated the values are between the datasets. First
+I need to wrangle the dates in order to join datasets 
+
+```{r}
+
+```
+
