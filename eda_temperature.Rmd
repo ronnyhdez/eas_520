@@ -61,6 +61,66 @@ First I want to check how correlated the values are between the datasets. First
 I need to wrangle the dates in order to join datasets 
 
 ```{r}
+temp_1 <- temperature_orig %>%
+  select(-air_temperature_1) %>%
+  filter(!is.na(air_temperature_2)) %>%
+  rename("temperature" = "air_temperature_2")
 
+temp_2 <- temperature_orig %>%
+  select(-air_temperature_2) %>%
+  filter(!is.na(air_temperature_1)) %>%
+  rename("temperature" = "air_temperature_1")
+
+temp_total <- bind_rows(temp_1, temp_2) %>% nrow()
+  
+# Darle vuelta a variables y quitar repetidos que son NA's
+temperature_converted <- temperature_orig %>% 
+  pivot_longer(cols = c("air_temperature_1", "air_temperature_2"),
+               names_to = "temperature") %>% 
+  filter(!is.na(value)) %>% 
+  separate(time_stamp, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  select(-temperature) %>% 
+  rename("temperature" = "value")
+  
+temp_converted <- nrow(temperature_converted)
+
+stopifnot(temp_total == temp_converted)
+rm(temp_total, temp_converted)
+```
+
+# Temperature data
+
+```{r}
+temperature_converted %>% 
+  group_by(zoo::as.yearmon(date_time)) %>% 
+  tally() %>% 
+  rename("date" = `zoo::as.yearmon(date_time)`, "total" = "n") %>% 
+  ggplot(aes(x = as.factor(date),
+             y = total, 
+             fill = as.factor(year(date)))) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis_d() +
+  theme_light(base_size = 21) +
+  labs(x = "Date", y = "Total observations", fill = "Year") +
+  theme(axis.text.x = element_text(angle = 70, h = 1))
+```
+
+```{r}
+temperature_converted %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  # filter values above 0.05
+  # filter(evapotranspiration < 0.02 & evapotranspiration > -0.02) %>% 
+  # filter(year(date_time) == 2013) %>% 
+  ggplot(aes(x = date_time, y = temperature)) +
+  geom_point(alpha = 0.5) +
+  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  theme_light(base_size = 16) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Temperature",
+       subtitle = "All the datapoints available",
+       x = "Date", y = "Temperature")
 ```
 
