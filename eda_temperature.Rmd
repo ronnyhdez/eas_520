@@ -22,6 +22,7 @@ library(readr)
 library(tidyr)
 library(stringr)
 library(ggplot2)
+library(skimr)
 ```
 
 # Data
@@ -32,18 +33,32 @@ using the option in the enviro-net platform.
 Also I downloaded the temperature dataset from the sensors in the towers, with
 the following options:
 
-![](img/temp_1.png)
-![](img/temp_2.png)
+![](img/temp_all.png)   
 
-```{r}
-temperature_orig <- read_csv("data/COSTA RICA - Santa Rosa National Park, Guanacaste.csv") %>% 
-  clean_names()
+```{r read data}
+# Read temperature from all sensors --------------------------------------------
+# En la imagen se aprecia un numero que acompaña el nombre de la variable. Para
+# identificarlos, les he colocado nombres que se asemejan a su origen.
+temperature_sensors <- read_csv("data/COSTA RICA - Santa Rosa National Park, Guanacaste 2013-06-06_2020-05-11_sensors.csv",
+                    col_types = cols(`Air Temperature (34810)` = col_number(), 
+                                     `Air Temperature (9861197)` = col_number(), 
+                                     `Air Temperature (248)` = col_number(), 
+                                     `Air Temperature (1)` = col_number(), 
+                                     `Air Temperature (2)` = col_number())) %>% 
+  clean_names() %>% 
+  rename("temp_principe_wsn_pheno_34810" = "air_temperature_34810",
+         "temp_perros_tower_hobo" = "air_temperature_9861197",
+         "temp_phenology_tower_hobo" = "air_temperature_9861198",
+         "temp_principe_wsn_pheno_248" = "air_temperature_248",
+         "temp_carbon_tower_net_radiometer" = "air_temperature_1",
+         "temp_principe_tower_campbell" = "air_temperature_2"
+  )
 
-# Read carbon tower data with error removal
+# Read carbon tower data with error removal ------------------------------------
 carbon_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512_error_removal.csv") %>% 
   clean_names()
 
-# Read principe tower data with error removal
+# Read principe tower data with error removal ----------------------------------
 principe_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_PrincipeTower(New)_EddyCo._CampbellCR3000(2)_20151213_20190622_error_removal.csv") %>% 
   clean_names()
 ```
@@ -56,49 +71,46 @@ principe_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalP
 
 We have three options to use temperature values:
 
- - Using the values from `mean_thermocouple_temp`
- - Using the values from `temperature` variable available in the principe dataset
- - Using the values from `temperature` from the sensors data set
+ - Using the values from `mean_thermocouple_temp` from carbon dataset.
+ - Using the values from `temperature` variable available in the principe dataset.
+ - Using the values from `temperature` from the sensors data set.
 
 First I want to check how correlated the values are between the datasets. First
 I need to wrangle the dates in order to join datasets. For this, I'm going to
 do a check on the data points from each of the datasets that we have available.
 
 ```{r}
-temp_1 <- temperature_orig %>%
-  select(-air_temperature_1) %>%
-  filter(!is.na(air_temperature_2)) %>%
-  rename("temperature" = "air_temperature_2")
-
-temp_2 <- temperature_orig %>%
-  select(-air_temperature_2) %>%
-  filter(!is.na(air_temperature_1)) %>%
-  rename("temperature" = "air_temperature_1")
-
-temp_total <- bind_rows(temp_1, temp_2) %>% nrow()
-  
-# Darle vuelta a variables y quitar repetidos que son NA's
-temperature_converted <- temperature_orig %>% 
-  pivot_longer(cols = c("air_temperature_1", "air_temperature_2"),
-               names_to = "temperature") %>% 
-  filter(!is.na(value)) %>% 
+# Toda la selección de temperatura
+temperature_sensors_all <- temperature_sensors %>% 
+  pivot_longer(cols = c("temp_principe_wsn_pheno_34810",
+                        "temp_perros_tower_hobo",
+                        "temp_phenology_tower_hobo",
+                        "temp_principe_wsn_pheno_248",
+                        "temp_carbon_tower_net_radiometer",
+                        "temp_principe_tower_campbell"
+                        ),
+               names_to = "dataset") %>% 
+  filter(!is.na(value),
+         value > 0) %>% 
   separate(time_stamp, into = c("date", "time"), sep = " ") %>% 
   mutate(time = str_sub(time, start = 1, end = 5)) %>% 
   unite(col = date_time, date, time, sep = " ") %>% 
   mutate(date_time = ymd_hm(date_time)) %>% 
-  select(-temperature) %>% 
   rename("temperature" = "value")
-  
-temp_converted <- nrow(temperature_converted)
-
-stopifnot(temp_total == temp_converted)
-rm(temp_total, temp_converted)
 ```
 
-# Temperature dataset
+## Temperature sensors dataset
+
+First, check all the variables from the sensor data set
 
 ```{r}
-temperature_converted %>% 
+skim(temperature_sensors)
+```
+
+
+```{r}
+## Segunda seleccion con todas las temperaturas disponibles
+temperature_sensors_all %>% 
   group_by(zoo::as.yearmon(date_time)) %>% 
   tally() %>% 
   rename("date" = `zoo::as.yearmon(date_time)`, "total" = "n") %>% 
@@ -108,19 +120,20 @@ temperature_converted %>%
   geom_bar(stat = "identity") +
   scale_fill_viridis_d() +
   theme_light(base_size = 21) +
-  labs(x = "Date", y = "Total observations", fill = "Year") +
+  labs(x = "Date", y = "Total observations", fill = "Year",
+       title = "Temperature observations from from sensor dataset",
+       subtitle = "Except for nodes") +
   theme(axis.text.x = element_text(angle = 70, h = 1))
 ```
 
 ```{r}
-temperature_converted %>% 
+# Para todos los datos de sensores disponibles
+temperature_sensors_all %>% 
   mutate(date = ymd_hms(date_time)) %>%
-  # filter values above 0.05
-  # filter(evapotranspiration < 0.02 & evapotranspiration > -0.02) %>% 
-  # filter(year(date_time) == 2013) %>% 
   ggplot(aes(x = date_time, y = temperature)) +
   geom_point(alpha = 0.5) +
-  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  scale_y_continuous(breaks = seq(10, 40, by = 2)) +
+  scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
   theme_light(base_size = 16) +
   theme(axis.text.x = element_text(angle = 75, h = 1)) +
   labs(title = "Temperature",
@@ -128,6 +141,23 @@ temperature_converted %>%
        x = "Date", y = "Temperature")
 ```
 
+```{r}
+temperature_sensors_all %>% 
+  group_by(zoo::as.yearmon(date_time), dataset) %>% 
+  tally() %>% 
+  rename("date" = `zoo::as.yearmon(date_time)`, "total" = "n") %>% 
+  ggplot(aes(x = as.factor(date),
+             y = total, 
+             fill = dataset)) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis_d() +
+  theme_light(base_size = 21) +
+  labs(x = "Date", y = "Total observations", fill = "Tower",
+       title = "Total data points per dataset",
+       subtitle = "Grouped by month and year for all the date range available",
+       caption = "Data retrieved from enviro-net https://www.enviro-net.org") +
+  theme(axis.text.x = element_text(angle = 70, h = 1))
+```
 
 ## Temperature from principe tower dataset
 
@@ -153,33 +183,42 @@ principe_tower_eddy_error_removal %>%
        x = "Date", y = "Temperature")
 ```
 
+ - We have few data ranges from this dataset
+ - There are very few outliers like the observations on -0
+ - We have more data points from the `air_temperature` variable
+ - Variable `mean_thermocouple_temp` have a hard upper limit
 
 ## Temperature from carbon tower data set
 
 ```{r}
-
-```
-
-
-
-## Idea comparacion temperaturas y rangos
-
-Puedo unir todas las temperaturas de los conjuntos de datos y hacer un grafico
-como el siguiente donde tengo los data points por color del conjunto de datos
-al que pertenecen: 
-
-```{r, eval = FALSE}
-temperature_converted %>% 
+carbon_tower_eddy_error_removal %>% 
+  select(date_time, mean_thermocouple_temp) %>% 
+  filter(!is.na(mean_thermocouple_temp)) %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) %>% 
   mutate(date = ymd_hms(date_time)) %>%
-  # filter values above 0.05
-  # filter(evapotranspiration < 0.02 & evapotranspiration > -0.02) %>% 
-  # filter(year(date_time) == 2013) %>% 
-  ggplot(aes(x = date_time, y = temperature)) +
+  ggplot(aes(x = date_time, y = mean_thermocouple_temp)) +
   geom_point(alpha = 0.5) +
-  scale_x_datetime(date_labels = "%b", breaks = "months") +
+  scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
   theme_light(base_size = 16) +
   theme(axis.text.x = element_text(angle = 75, h = 1)) +
-  labs(title = "Temperature",
-       subtitle = "All the datapoints available from sensor dataset",
+  labs(title = "Temperature from `mean_thermocouple_temp` variable from carbon tower dataset",
+       subtitle = "Datapoints are showed with hour and minutes per day",
        x = "Date", y = "Temperature")
 ```
+
+ - We have more data points than the other two datasets
+ - The top values seems to have a hard upper limit on 26
+
+## Notes
+
+ - We cannot use `mean_thermocouple_temp` from any of both towers because it
+ seems to have a hard upper limit on 26 C.
+ - We do not have consistency on date ranges from the towers datasets regarding
+ with the temperature variable.
+ - Using all the sensors data in one unified dataset can help us to have almost
+ a complete date range from 2013 to 2020.
+
+
