@@ -23,6 +23,7 @@ library(tidyr)
 library(stringr)
 library(ggplot2)
 library(skimr)
+library(feather)
 ```
 
 # Data
@@ -220,5 +221,11 @@ carbon_tower_eddy_error_removal %>%
  with the temperature variable.
  - Using all the sensors data in one unified dataset can help us to have almost
  a complete date range from 2013 to 2020.
+ 
+```{r}
+# Export dataset
+write_feather(temperature_sensors_all, "data/temperature_sensors_all.feather")
+```
+
 
 
