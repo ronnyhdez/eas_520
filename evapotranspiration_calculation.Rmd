@@ -118,9 +118,12 @@ towers <- bind_rows(carbon_tower_eddy_error_removal,
 towers %>% 
   mutate(date = ymd_hms(date_time)) %>%
   ggplot(aes(x = date_time, y = latent_heat_flux, color = tower)) +
-  geom_jitter(alpha = 1, size = 0.7) +
+  geom_jitter(alpha = 0.5, size = 0.7) +
   scale_y_continuous(breaks = seq(-4000, 3000, by = 500)) + #
   scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
+  scale_color_manual(name = "Tower",labels = c("Carbon tower",
+                                               "Principe tower"),
+                     values = c("#1C7636", "#FFCC37")) +
   theme_light(base_size = 16) +
   theme(axis.text.x = element_text(angle = 75, h = 1)) +
   labs(title = "Latent Heat Flux for all observations available from both towers",
@@ -140,7 +143,7 @@ temperature_sensors %>%
   theme(axis.text.x = element_text(angle = 75, h = 1)) +
   labs(title = "Temperature (C)",
        subtitle = "All the datapoints available from sensor dataset",
-       x = "Date", y = "Temperature")
+       x = "Date", y = "Temperature (C)")
 ```
 
 # Evapotranspiration calculation
