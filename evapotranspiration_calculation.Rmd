@@ -270,24 +270,25 @@ evapotranspiration_grouped %>%
   mutate(date = ymd(date)) %>%
   ggplot(aes(x = date, y = total)) +
   geom_point(alpha = 0.5) +
-  # scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
+  scale_x_date(date_labels = "%b-%d-%Y", breaks = "months") +
   theme_light(base_size = 21) +
   theme(axis.text.x = element_text(angle = 75, h = 1)) +
   labs(title = "Sum of evapotranspiration per date",
        subtitle = "Al the datapoints available",
-       x = "Date", y = "Evapotranspiration mmol m-2 s-1")
+       x = "Date", y = "Evapotranspiration mmol H2O m-2 s-1")
 
 # Plot mean of evapotranspiration
 evapotranspiration_grouped %>% 
   mutate(date = ymd(date)) %>%
   ggplot(aes(x = date, y = mean)) +
   geom_point(alpha = 0.5) +
-  # scale_x_datetime(date_labels = "%b", breaks = "months") +
+  geom_smooth() +
+  scale_x_date(date_labels = "%b-%d-%Y", breaks = "2 months") +
   theme_light(base_size = 21) +
   theme(axis.text.x = element_text(angle = 75, h = 1)) +
   labs(title = "Mean of evapotranspiration per date",
        subtitle = "Al the datapoints available",
-       x = "Date", y = "Evapotranspiration mmol m-2 s-1")
+       x = "Date", y = "Evapotranspiration mmol H2O m-2 s-1")
 ```
 
 
