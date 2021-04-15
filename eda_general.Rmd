@@ -764,7 +764,10 @@ dictionary and the skim.
 
 ## Unite data sets to fill gaps
 
-I selected the variables with 
+Using the datasets from carbon tower and principe tower with the `error removal`
+option, we can bind this datasets by `date_time` with the objective of
+obtaining data observations from one tower when we lack observations from the
+other tower.
 
 ```{r}
 carbon_no_error <- carbon_tower_eddy_error_removal %>% 
@@ -783,9 +786,14 @@ principe_no_error <- principe_tower_eddy_error_removal %>%
 eddy_complete_no_error <- rbind(carbon_no_error, principe_no_error)
 ```
 
+From the carbon tower with error removal dataset we have `r nrow(carbon_no_error)`
+and from the principe tower with error removal dataset we have `r nrow(principe_no_error)`
+
 ## Comparison of data values per dataset
 
-In the next figure, I'm checking 
+After binding both datasets, we obtain `r nrow(eddy_complete_no_error)` observations.
+In order to know how many of them are grouped within the same date_time, I
+grouped all the observations per month and year.
 
 ```{r}
 eddy_complete_no_error %>% 
@@ -807,7 +815,7 @@ eddy_complete_no_error %>%
 
 ## Check if there are differences between days 
 
-september and october 2017 and april 2019 are dates on wich observations from
+september and october 2017 and april 2019 are dates on which observations from
 both towers are similar. We can compare if the values from both towers are
 similar or differ among them
 
@@ -855,8 +863,6 @@ eddy_complete_no_error %>%
   scale_color_viridis_d() +
   theme_bw() +
   labs(title = "abr 2019")
-
-## Comparar latent heat flux de carbon tower con latent heat flux de principe
 ```
 
 The date with complete values for both towers is from the month of april 2019.
@@ -864,29 +870,8 @@ We want to compare values from both towers to check statiscally if there are
 diference in order to decide if we can values from both towers as one
 
 ```{r}
-library(tidyr)
-d <- eddy_complete_no_error %>% 
-  select(tower, latent_heat_flux, date_time) %>% 
-  filter(tower == "carbon_tower") %>% 
-  mutate(fecha = zoo::as.yearmon(date_time)) %>% 
-  filter(fecha == "abr 2019") %>% 
-  separate(date_time, into = c("date", "time"), sep = " ") %>% 
-  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
-  mutate(time = (hm(time)))
-
-c <- eddy_complete_no_error %>% 
-  select(tower, latent_heat_flux, date_time) %>% 
-  filter(tower == "principe_tower") %>% 
-  mutate(fecha = zoo::as.yearmon(date_time)) %>% 
-  filter(fecha == "abr 2019") %>% 
-  separate(date_time, into = c("date", "time"), sep = " ") %>% 
-  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
-  mutate(time = (hm(time)))
-
-# Si solo cambio tiempo, no logro pegar fechas, mejor cambiar todo a date_time
-# con segundos en cero
-
-f <- eddy_complete_no_error %>% 
+# Deal with seconds
+april_carbon <- eddy_complete_no_error %>% 
   select(tower, latent_heat_flux, date_time) %>% 
   filter(tower == "principe_tower") %>% 
   mutate(fecha = zoo::as.yearmon(date_time)) %>% 
@@ -894,9 +879,10 @@ f <- eddy_complete_no_error %>%
   separate(date_time, into = c("date", "time"), sep = " ") %>% 
   mutate(time = str_sub(time, start = 1, end = 5)) %>% 
   unite(col = date_time, date, time, sep = " ") %>% 
-  mutate(date_time = ymd_hm(date_time))
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  rename("carbon_april_latent_heat_flux" = "latent_heat_flux")
 
-g <- eddy_complete_no_error %>% 
+april_principe <- eddy_complete_no_error %>% 
   select(tower, latent_heat_flux, date_time) %>% 
   filter(tower == "carbon_tower") %>% 
   mutate(fecha = zoo::as.yearmon(date_time)) %>% 
@@ -904,19 +890,41 @@ g <- eddy_complete_no_error %>%
   separate(date_time, into = c("date", "time"), sep = " ") %>% 
   mutate(time = str_sub(time, start = 1, end = 5)) %>% 
   unite(col = date_time, date, time, sep = " ") %>% 
-  mutate(date_time = ymd_hm(date_time))
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  rename("principe_april_latent_heat_flux" = "latent_heat_flux")
 
-check <- g %>% 
-  left_join(f, by = "date_time")
+april <- inner_join(april_principe, april_carbon, by = "date_time")
+```
 
-check %>% 
-  # pivot_wider(-time, names_from = tower, values_from = c(latent_heat_flux)) %>% 
-  ggplot(aes(x = latent_heat_flux.x , y = latent_heat_flux.y)) +
+The next image is a plot with the values that the towers have in common according
+to the date time variable. Values from one tower that were missing from the 
+other tower were excluded for the plot.
+
+```{r}
+april %>% 
+  ggplot(aes(x = principe_april_latent_heat_flux,
+             y = carbon_april_latent_heat_flux)) +
   geom_point() +
-  geom_smooth(method = "lm")
+  geom_smooth(method = "lm") +
+  labs(title = "Relation between latent heat flux from carbon and principe tower",
+       subtitle = "For april 2019. Each data point represents the exact same date_time for both towers",
+       x = "Principe tower latent heat flux",
+       y = "Carbon tower latent heat flux") +
+  theme_bw() 
+```
 
+ - A big proportion of data points are not closer between them even when they
+ are from the same date_time.
+ - We can see that there is a correlation, but is lower than what I wanted to see
+ 
+```{r}
+
+```
+
+ 
+```{r}
 # Probar con todos los datos, no solo abril
-h <- eddy_complete_no_error %>% 
+complete_lhf_principe <- eddy_complete_no_error %>% 
   select(tower, latent_heat_flux, date_time) %>% 
   filter(tower == "principe_tower") %>% 
   separate(date_time, into = c("date", "time"), sep = " ") %>% 
@@ -924,7 +932,7 @@ h <- eddy_complete_no_error %>%
   unite(col = date_time, date, time, sep = " ") %>% 
   mutate(date_time = ymd_hm(date_time))
 
-i <- eddy_complete_no_error %>% 
+complete_lhf_carbon <- eddy_complete_no_error %>% 
   select(tower, latent_heat_flux, date_time) %>% 
   filter(tower == "carbon_tower") %>% 
   separate(date_time, into = c("date", "time"), sep = " ") %>% 
@@ -932,13 +940,19 @@ i <- eddy_complete_no_error %>%
   unite(col = date_time, date, time, sep = " ") %>% 
   mutate(date_time = ymd_hm(date_time))
 
-check_all <- i %>% 
-  left_join(h, by = "date_time")
+complete <- inner_join(complete_lhf_principe,
+                       complete_lhf_carbon,
+                       by = "date_time")
 
-check %>% 
+complete %>% 
   ggplot(aes(x = latent_heat_flux.x , y = latent_heat_flux.y)) +
-  geom_point() +
-  geom_smooth(method = "lm")
+  geom_point(alpha = 0.05) +
+  geom_smooth(method = "lm") +
+  labs(title = "Relation between latent heat flux from carbon and principe tower",
+       subtitle = "For april 2019. Each data point represents the exact same date_time for both towers",
+       x = "Principe tower latent heat flux",
+       y = "Carbon tower latent heat flux") +
+  theme_bw()
 ```
 
 ## Correlation between variables from both towers
@@ -1019,7 +1033,20 @@ cor.test(eddy_selected$mean_thermocouple_temp.x,
 ```
 
 
+# Conclusions
 
+ - We can build a script to evaluate data points in both towers. This means that
+ we can compare how close are data points for the same date time and if they have
+ big differences we can take actions to calibrate sensors.
+ - We have an script that can give us an output of the gaps in time for different
+ variables for both towers in order to inform users of the enviro-net open data
+ platform.
+ - We have a detailed data exploration for some of the variables
+ - All the code can be accessed through github in order to obtain feedback from
+ the community of users from the enviro-net open data platform
+ - All the results obtained from the data exploration can be published as an
+ inform or as a dashboard if we have tools available for the deployment and
+ 
 
 
 

@@ -187,7 +187,10 @@ eddy_temp %>%
 
 
 
+### References
 
+https://stackoverflow.com/questions/9968975/make-the-background-of-a-graph-different-colours-in-different-regions
+https://stackoverflow.com/questions/50339909/shade-background-of-a-ggplot-chart-using-geom-rect-with-categorical-variables#50340075
 
 
 
