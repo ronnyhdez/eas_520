@@ -1,0 +1,482 @@
+---
+title: "Results figures"
+subtitle: "EAS 520"
+author: "Ronny Hernández Mora"
+date: "2/27/2021"
+always_allow_html: yes
+output:
+  rmdformats::downcute:
+    code_folding: hide
+    fig_width: 12
+    fig_height: 8
+    use_bookdown: true
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(janitor)
+library(visdat)
+library(bigleaf)
+library(lubridate)
+library(gt)
+library(tidyr)
+library(purrr)
+library(rmdformats)
+library(skimr)
+library(stringr)
+library(corrplot)
+library(fdth)
+
+# Number output options
+options(scipen = 20)
+options(Sys.getlocale("LC_CTYPE"))
+
+
+# Read carbon tower data with error removal
+carbon_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512_error_removal.csv") %>% 
+  clean_names()
+
+# Read principe tower data with error removal
+principe_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_PrincipeTower(New)_EddyCo._CampbellCR3000(2)_20151213_20190622_error_removal.csv") %>% 
+  clean_names()
+```
+
+## Carbon tower data
+
+```{r}
+# Select variables to play with
+eddy <- carbon_tower_eddy_error_removal %>% 
+  select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp)
+```
+
+### Fig 3
+
+```{r}
+# Por mes agregado por año
+eddy %>% 
+  group_by(year(date_time), month(date_time)) %>% 
+  tally() %>% 
+  ggplot(aes(x = as.factor(`month(date_time)`),
+             y = n, 
+             fill = as.factor(`year(date_time)`))) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis_d() +
+  labs(x = "Month", y = "Total observations", fill = "Year") +
+  theme_light(base_size = 16)
+```
+
+### Fig 4
+
+```{r}
+eddy %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  filter(latent_heat_flux > -1000, latent_heat_flux < 1000) %>% 
+  ggplot(aes(x = date_time, y = latent_heat_flux)) +
+  geom_point(alpha = 0.07, size = 1) +
+  scale_x_datetime(date_labels = "%b%y", breaks = "months") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(x = "Date", y = "Latent Heat Flux (W m-2)")
+```
+
+Notas:
+
+```{r}
+NROW(eddy)
+range(eddy$date_time)
+sum(is.na(eddy$latent_heat_flux))
+```
+
+# Principe tower 
+
+```{r}
+# Select variables to play with
+eddy <- principe_tower_eddy_error_removal %>% 
+  select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp,
+         air_temperature, humidity, saturation_vapour_pressure_k_pa)
+```
+
+### Fig 5
+
+```{r}
+# Separados por mes y por año
+eddy %>% 
+  group_by(zoo::as.yearmon(date_time)) %>% 
+  tally() %>% 
+  rename("date" = `zoo::as.yearmon(date_time)`, "total" = "n") %>% 
+  ggplot(aes(x = as.factor(date),
+             y = total, 
+             fill = as.factor(year(date)))) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis_d() +
+  theme_light(base_size = 21) +
+  labs(x = "Date", y = "Total observations", fill = "Year") +
+  theme(axis.text.x = element_text(angle = 70, h = 1))
+```
+
+### Fig 6
+
+```{r}
+eddy %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  filter(latent_heat_flux > -1000, latent_heat_flux < 1000) %>%
+  ggplot(aes(x = date_time, y = latent_heat_flux)) +
+  geom_point(alpha = 0.07, size = 1) +
+  scale_x_datetime(date_labels = "%b%y", breaks = "months") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(x = "Date", y = "Latent Heat Flux (W m-2)")
+```
+
+Notas:
+
+```{r}
+NROW(eddy)
+range(eddy$date_time)
+sum(is.na(eddy$latent_heat_flux))
+```
+
+# Relation
+
+```{r}
+carbon_no_error <- carbon_tower_eddy_error_removal %>% 
+  select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "carbon_tower")
+
+principe_no_error <- principe_tower_eddy_error_removal %>% 
+  select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "principe_tower")
+# air_temperature, humidity, saturation_vapour_pressure_k_pa)
+
+eddy_complete_no_error <- rbind(carbon_no_error, principe_no_error)
+```
+
+### Fig 7
+
+```{r}
+eddy_complete_no_error %>% 
+  group_by(zoo::as.yearmon(date_time), tower) %>% 
+  tally() %>% 
+  rename("date" = `zoo::as.yearmon(date_time)`, "total" = "n") %>% 
+  ggplot(aes(x = as.factor(date),
+             y = total, 
+             fill = tower)) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis_d() +
+  theme_light(base_size = 21) +
+  labs(x = "Date", y = "Total observations", fill = "Tower") +
+  theme(axis.text.x = element_text(angle = 70, h = 1))
+```
+
+### Fig 8
+
+```{r}
+# abril
+eddy_complete_no_error %>% 
+  mutate(date = zoo::as.yearmon(date_time)) %>% 
+  mutate(date = as.character(date)) %>% 
+  filter(date == "abr 2019") %>% 
+  ggplot(aes(x = date_time, y = latent_heat_flux, color = tower)) +
+  geom_line() +
+  scale_color_viridis_d() +
+  theme_bw(base_size = 21) +
+  labs(x = "Date", y = "Latent Heat Flux (W m-2)", color = "Tower")
+```
+
+### Fig 9
+
+```{r}
+# Probar con todos los datos, no solo abril
+complete_lhf_principe <- eddy_complete_no_error %>% 
+  select(tower, latent_heat_flux, date_time) %>% 
+  filter(latent_heat_flux > -1000, latent_heat_flux < 1000) %>% 
+  filter(tower == "principe_tower") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  rename("latent_heat_flux_principe" = "latent_heat_flux")
+
+complete_lhf_carbon <- eddy_complete_no_error %>% 
+  select(tower, latent_heat_flux, date_time) %>% 
+  filter(latent_heat_flux > -1000, latent_heat_flux < 1000) %>% 
+  filter(tower == "carbon_tower") %>% 
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  rename("latent_heat_flux_carbon" = "latent_heat_flux")
+
+complete <- inner_join(complete_lhf_principe,
+                       complete_lhf_carbon,
+                       by = "date_time")
+
+complete %>% 
+  ggplot(aes(x = latent_heat_flux_principe , y = latent_heat_flux_carbon)) +
+  geom_point(alpha = 0.05) +
+  scale_y_continuous(breaks = seq(-1000, 1000, by = 100)) +
+  scale_x_continuous(breaks = seq(-1000, 1000, by = 100)) +
+  geom_smooth(method = "lm", se = TRUE, col = "#74AADB") +
+  labs(x = "Principe tower Latent Heat Flux (W m-2)",
+       y = "Carbon tower Latent Heat Flux (W m-2)") +
+  theme_bw(base_size = 21)
+```
+
+### Fig 10
+
+```{r}
+# Differences between both towers
+complete_differences <- complete %>% 
+  mutate(difference = latent_heat_flux_carbon - latent_heat_flux_principe)
+
+# Grafico
+complete_differences %>% 
+  ggplot(aes(x = difference)) +
+  geom_histogram() +
+  scale_y_continuous(breaks = seq(0, 8000, by = 500)) +
+  scale_x_continuous(breaks = seq(-1000, 1000, by = 100)) +
+  labs(x = "Differences between carbon and principe towers Latent Heat Flux values",
+       y = "Total of observations") +
+  theme_bw(base_size = 21)
+```
+
+```{r}
+complete_differences %>% 
+  filter(difference < 100, difference > -100) %>% 
+  count()
+```
+
+### Fig 11
+
+```{r}
+## Read carbon tower data with error removal
+carbon_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512_error_removal.csv") %>% 
+  clean_names() %>% 
+  select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "carbon_tower") %>% 
+  # Set seconds to 0
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) 
+
+## Read principe tower data with error removal
+principe_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_PrincipeTower(New)_EddyCo._CampbellCR3000(2)_20151213_20190622_error_removal.csv") %>% 
+  clean_names() %>% 
+  select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "principe_tower") %>% 
+  # Set seconds to 0
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) 
+
+
+### Bind towers data sets
+towers <- bind_rows(carbon_tower_eddy_error_removal,
+                    principe_tower_eddy_error_removal
+                    ) %>% 
+  # Llevar los tiempos a periodos de 30 minutos
+  # Ver chunk con notas sobre pruebas realizadas
+  mutate(date_time = ceiling_date(date_time, "30 mins")) %>% 
+  filter(latent_heat_flux > -1000, latent_heat_flux < 1000) 
+
+# Latent Heat Flux in time
+towers %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = latent_heat_flux, color = tower)) +
+  geom_jitter(alpha = 0.5, size = 0.7) +
+  scale_y_continuous(breaks = seq(-1000, 1000, by = 100)) +
+  scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
+  scale_color_manual(name = "Tower",labels = c("Carbon tower",
+                                               "Principe tower"),
+                     values = c("#1C7636", "#FFCC37")) +
+  theme_light(base_size = 20) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(
+    x = "Date", 
+    y = "Latent Heat Flux (W m-2)",
+    color = "Tower")
+```
+
+```{r}
+nrow(towers)
+```
+
+# Temperature
+
+```{r}
+temperature_sensors <- read_csv("data/COSTA RICA - Santa Rosa National Park, Guanacaste 2013-06-06_2020-05-11_sensors.csv",
+                    col_types = cols(`Air Temperature (34810)` = col_number(), 
+                                     `Air Temperature (9861197)` = col_number(), 
+                                     `Air Temperature (248)` = col_number(), 
+                                     `Air Temperature (1)` = col_number(), 
+                                     `Air Temperature (2)` = col_number())) %>% 
+  clean_names() %>% 
+  rename("temp_principe_wsn_pheno_34810" = "air_temperature_34810",
+         "temp_perros_tower_hobo" = "air_temperature_9861197",
+         "temp_phenology_tower_hobo" = "air_temperature_9861198",
+         "temp_principe_wsn_pheno_248" = "air_temperature_248",
+         "temp_carbon_tower_net_radiometer" = "air_temperature_1",
+         "temp_principe_tower_campbell" = "air_temperature_2"
+  )
+
+temperature_sensors_all <- temperature_sensors %>% 
+  pivot_longer(cols = c("temp_principe_wsn_pheno_34810",
+                        "temp_perros_tower_hobo",
+                        "temp_phenology_tower_hobo",
+                        "temp_principe_wsn_pheno_248",
+                        "temp_carbon_tower_net_radiometer",
+                        "temp_principe_tower_campbell"
+                        ),
+               names_to = "dataset") %>% 
+  filter(!is.na(value),
+         value > 0) %>% 
+  separate(time_stamp, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  rename("temperature" = "value")
+```
+
+```{r}
+nrow(temperature_sensors_all)
+range(temperature_sensors_all$date_time)
+```
+
+### Fig 12
+
+```{r}
+temperature_sensors_all %>% 
+  group_by(zoo::as.yearmon(date_time), dataset) %>% 
+  tally() %>% 
+  rename("date" = `zoo::as.yearmon(date_time)`, "total" = "n") %>% 
+  ggplot(aes(x = as.factor(date),
+             y = total, 
+             fill = dataset)) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis_d() +
+  theme_light(base_size = 21) +
+  labs(x = "Date", y = "Total observations", fill = "Tower") +
+  theme(axis.text.x = element_text(angle = 70, h = 1))
+```
+
+### Fig 13
+
+```{r}
+# Temperature in time
+temperature_sensors_all %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = temperature)) +
+  geom_point(alpha = 0.5, size = 0.7, col = "#74AADB") +
+  scale_y_continuous(breaks = seq(10, 40, by = 2)) +
+  scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
+  theme_light(base_size = 20) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(x = "Date", y = "Temperature (°C)")
+```
+
+```{r}
+nrow(temperature_sensors_all)
+```
+
+# Evapotranspiration
+
+```{r}
+# Unidades = kg H2O m−2 d−1
+
+# Obtain mean temperaure value grouped by date_time
+temp_mean <- temperature_sensors_all %>% 
+  group_by(date_time) %>% 
+  summarise(
+    mean_sensors_temp = mean(temperature, na.rm = TRUE)
+  )
+
+# Test to check if we have unique date_time values
+stopifnot(nrow(temp_mean) == length(unique(temp_mean$date_time)))
+
+# Join temperature means with towers dataset
+evapotranspiration <- towers %>% 
+  # distinct(date_time, .keep_all = TRUE)
+  # Filter outliers 
+  filter(latent_heat_flux > -500,
+         latent_heat_flux < 1000) %>% 
+  # Este inner join me excluye valores repetidos de latent_heat_flux
+  inner_join(temp_mean, by = "date_time") %>% 
+  filter(!is.na(latent_heat_flux)) %>% 
+  # Calculate evapotranspiration
+  mutate(evapotranspiration_kg = LE.to.ET(latent_heat_flux,
+                                          mean_sensors_temp )) %>% 
+  # Transform units
+  mutate(evapotranspiration_mol = kg.to.mol((evapotranspiration_kg) * 1000))
+```
+
+```{r}
+nrow(evapotranspiration)
+```
+
+### Fig 14
+
+```{r}
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = evapotranspiration_mol)) +
+  geom_jitter(alpha = 0.06, size = 0.7) +
+  scale_y_continuous() + #breaks = seq(10, 40, by = 2)
+  scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
+  theme_light(base_size = 20) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(x = "Date", y = "Evapotranspiration (mmol H2O m−2 d−1)")
+```
+
+### Fig 15
+
+```{r}
+evapotranspiration_grouped <- evapotranspiration %>% 
+  mutate(date = as.Date(date_time)) %>% 
+  group_by(ymd(date)) %>% 
+  summarise(
+    mean = mean(evapotranspiration_mol, na.rm = TRUE),
+    total = sum(evapotranspiration_mol, na.rm = TRUE)
+  ) %>% 
+  rename("date" = `ymd(date)`)
+
+# Plot mean of evapotranspiration
+evapotranspiration_grouped %>% 
+  mutate(date = ymd(date),
+         year = as.factor(year(date))) %>%
+  ggplot(aes(x = date, y = mean)) +
+  geom_rect(aes(xmin = date, 
+                xmax = dplyr::lead(date),
+                ymin = -2, 
+                ymax = Inf,
+                fill = year),
+            alpha = 0.8) +
+  geom_point(alpha = 0.5) +
+  geom_smooth() +
+  scale_fill_viridis_d() +
+  scale_x_date(date_labels = "%b", breaks = "2 months") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(x = "Date", 
+       y = "Evapotranspiration mmol H2O m-2 s-1",
+       fill = "Year")
+```
+

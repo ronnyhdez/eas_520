@@ -30,6 +30,7 @@ library(rmdformats)
 library(skimr)
 library(stringr)
 library(corrplot)
+library(fdth)
 
 # Number output options
 options(scipen = 20)
@@ -943,7 +944,8 @@ complete_lhf_principe <- eddy_complete_no_error %>%
   separate(date_time, into = c("date", "time"), sep = " ") %>% 
   mutate(time = str_sub(time, start = 1, end = 5)) %>% 
   unite(col = date_time, date, time, sep = " ") %>% 
-  mutate(date_time = ymd_hm(date_time))
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  rename("latent_heat_flux_principe" = "latent_heat_flux")
 
 complete_lhf_carbon <- eddy_complete_no_error %>% 
   select(tower, latent_heat_flux, date_time) %>% 
@@ -951,14 +953,15 @@ complete_lhf_carbon <- eddy_complete_no_error %>%
   separate(date_time, into = c("date", "time"), sep = " ") %>% 
   mutate(time = str_sub(time, start = 1, end = 5)) %>% 
   unite(col = date_time, date, time, sep = " ") %>% 
-  mutate(date_time = ymd_hm(date_time))
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  rename("latent_heat_flux_carbon" = "latent_heat_flux")
 
 complete <- inner_join(complete_lhf_principe,
                        complete_lhf_carbon,
                        by = "date_time")
 
 complete %>% 
-  ggplot(aes(x = latent_heat_flux.x , y = latent_heat_flux.y)) +
+  ggplot(aes(x = latent_heat_flux_principe , y = latent_heat_flux_carbon)) +
   geom_point(alpha = 0.05) +
   geom_smooth(method = "lm") +
   labs(title = "Relation between latent heat flux from carbon and principe tower",
@@ -988,6 +991,42 @@ complete_excluded %>%
  months on the 2018 year were there are no observations from the carbon tower
  - A total of `r nrow(complete_excluded)` observations were excluded from the
  above exploration.
+
+
+```{r}
+# Differences between both towers
+complete_differences <- complete %>% 
+  mutate(difference = latent_heat_flux_carbon - latent_heat_flux_principe)
+
+# sturges <- fdt(x = complete_differences$difference)
+# 
+# sturges$table %>% 
+#       separate(
+#       col = "Class limits",
+#       into = c("inferior", "superior"),
+#       sep = ","
+#     ) %>%
+#     mutate(inferior = as.numeric(str_replace(inferior, "\\[", "")),
+#            superior = as.numeric(str_replace(superior, "\\)", ""))) %>%
+#     rename(
+#       "Frequency" = "f",
+#       "Relative Frequency" = "rf",
+#       "Relative Frequency %" =  "rf(%)",
+#       "Accumulative Frequency" = "cf",
+#       "Accumulative Frequency %" = "cf(%)"
+#     ) %>%
+#     gt()
+
+# Grafico
+complete_differences %>% 
+  ggplot(aes(x = difference)) +
+  geom_histogram() +
+  labs(title = "Most of the Latent Heat FLux values between both towers do not differ",
+       subtitle = "Carbon Latent Heat Flux values minus the Principe Latent Heat Flux values",
+       x = "Differences between carbon and principe towers Latent Heat Flux values",
+       y = "Total of observations") +
+  theme_bw()
+```
 
 
 ## Correlation between variables from both towers
