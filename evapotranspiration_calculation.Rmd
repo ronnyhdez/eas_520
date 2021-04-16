@@ -1,0 +1,325 @@
+---
+title: "Evapotranspiration calculation"
+subtitle: "EAS 520"
+author: "Ronny Hernández Mora"
+date: "2/27/2021"
+always_allow_html: yes
+output:
+  rmdformats::downcute:
+    code_folding: hide
+    fig_width: 12
+    fig_height: 8
+    use_bookdown: true
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup-import-clean data, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(dplyr)
+library(lubridate)
+library(janitor)
+library(readr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(skimr)
+library(feather)
+library(bigleaf)
+
+# Import data
+
+## Temperature
+temperature_sensors <- read_csv("data/COSTA RICA - Santa Rosa National Park, Guanacaste 2013-06-06_2020-05-11_sensors.csv",
+                    col_types = cols(`Air Temperature (34810)` = col_number(), 
+                                     `Air Temperature (9861197)` = col_number(), 
+                                     `Air Temperature (248)` = col_number(), 
+                                     `Air Temperature (1)` = col_number(), 
+                                     `Air Temperature (2)` = col_number())) %>% 
+  clean_names() %>% 
+  rename("temp_principe_wsn_pheno_34810" = "air_temperature_34810",
+         "temp_perros_tower_hobo" = "air_temperature_9861197",
+         "temp_phenology_tower_hobo" = "air_temperature_9861198",
+         "temp_principe_wsn_pheno_248" = "air_temperature_248",
+         "temp_carbon_tower_net_radiometer" = "air_temperature_1",
+         "temp_principe_tower_campbell" = "air_temperature_2"
+  ) %>% 
+   pivot_longer(cols = c("temp_principe_wsn_pheno_34810",
+                        "temp_perros_tower_hobo",
+                        "temp_phenology_tower_hobo",
+                        "temp_principe_wsn_pheno_248",
+                        "temp_carbon_tower_net_radiometer",
+                        "temp_principe_tower_campbell"
+                        ),
+               names_to = "dataset") %>% 
+  filter(!is.na(value),
+         value > 0) %>% 
+  separate(time_stamp, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) %>% 
+  rename("temperature" = "value") %>% 
+  # Llevar los tiempos a periodos de 30 minutos
+  # Ver chunk con notas sobre pruebas realizadas
+  mutate(date_time = ceiling_date(date_time, "30 mins"))
+
+
+## Read carbon tower data with error removal
+carbon_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_CarbonTower(New)_EddyCo._CampbellCR3000(1)_20130607_20190512_error_removal.csv") %>% 
+  clean_names() %>% 
+  select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "carbon_tower") %>% 
+  # Set seconds to 0
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) 
+
+## Read principe tower data with error removal
+principe_tower_eddy_error_removal <- read_csv("data/COSTARICA-SantaRosaNationalPark,Guanacaste_PrincipeTower(New)_EddyCo._CampbellCR3000(2)_20151213_20190622_error_removal.csv") %>% 
+  clean_names() %>% 
+  select(date_time, sensible_heat_flux, co2_flux, latent_heat_flux,
+         mean_co2_concentration, mean_h2o_vapour_concentration, 
+         mean_moist_air_density, mean_thermocouple_temp) %>% 
+  mutate(tower = "principe_tower") %>% 
+  # Set seconds to 0
+  separate(date_time, into = c("date", "time"), sep = " ") %>% 
+  mutate(time = str_sub(time, start = 1, end = 5)) %>% 
+  unite(col = date_time, date, time, sep = " ") %>% 
+  mutate(date_time = ymd_hm(date_time)) 
+
+
+### Bind towers data sets
+towers <- bind_rows(carbon_tower_eddy_error_removal,
+                    principe_tower_eddy_error_removal
+                    ) %>% 
+  # Llevar los tiempos a periodos de 30 minutos
+  # Ver chunk con notas sobre pruebas realizadas
+  mutate(date_time = ceiling_date(date_time, "30 mins"))
+```
+
+# Consideraciones:
+
+ - Para los datos de temperatura, si tenemos muchos valores por minuto, por
+ hora por dia, agruparlos y sacar un promedio.
+ - Luego, estos valores promediados por minutos, promediarlos por hora o por
+ día para hacer el calculo.
+ - Tenemos que unir los conjuntos de datos que contienen latent_heat_flux y
+ temperatura para conocer cual es el periodo de tiempo mas largo posible que
+ tenemos.
+ - Con evapotranspiracion calculado, sacar conclusiones
+ 
+# Date ranges data visualization
+
+```{r date range visualization}
+# Latent Heat Flux in time
+towers %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = latent_heat_flux, color = tower)) +
+  geom_jitter(alpha = 0.5, size = 0.7) +
+  scale_y_continuous(breaks = seq(-4000, 3000, by = 500)) + #
+  scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
+  scale_color_manual(name = "Tower",labels = c("Carbon tower",
+                                               "Principe tower"),
+                     values = c("#1C7636", "#FFCC37")) +
+  theme_light(base_size = 16) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Latent Heat Flux for all observations available from both towers",
+       subtitle = "Without filtering outliers",
+       x = "Date", 
+       y = "Latent Heat Flux (W m-2)",
+       color = "Tower")
+
+# Temperature in time
+temperature_sensors %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = temperature)) +
+  geom_point(alpha = 0.5) +
+  scale_y_continuous(breaks = seq(10, 40, by = 2)) +
+  scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
+  theme_light(base_size = 16) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Temperature (C)",
+       subtitle = "All the datapoints available from sensor dataset",
+       x = "Date", y = "Temperature (C)")
+```
+
+# Evapotranspiration calculation
+
+```{r evapotranspiration calculation}
+# Unidades = kg H2O m−2 d−1
+
+# Obtain mean temperaure value grouped by date_time
+temp_mean <- temperature_sensors %>% 
+  group_by(date_time) %>% 
+  summarise(
+    mean_sensors_temp = mean(temperature, na.rm = TRUE)
+  )
+
+# Test to check if we have unique date_time values
+stopifnot(nrow(temp_mean) == length(unique(temp_mean$date_time)))
+
+# Join temperature means with towers dataset
+evapotranspiration <- towers %>% 
+  # distinct(date_time, .keep_all = TRUE)
+  # Filter outliers 
+  filter(latent_heat_flux > -500,
+         latent_heat_flux < 1000) %>% 
+  # Este inner join me excluye valores repetidos de latent_heat_flux
+  inner_join(temp_mean, by = "date_time") %>% 
+  filter(!is.na(latent_heat_flux)) %>% 
+  # Calculate evapotranspiration
+  mutate(evapotranspiration_kg = LE.to.ET(latent_heat_flux,
+                                          mean_sensors_temp )) %>% 
+  # Transform units
+  mutate(evapotranspiration_mol = kg.to.mol((evapotranspiration_kg) * 1000))
+
+# Review towers repeated date_times
+# check_towers <- towers %>% 
+```
+
+<!-- Pruebas con cambios de minutos para cerrarlos en media hora -->
+
+```{r, eval = FALSE}
+# date validation between datasets
+# check_temp <- temp_mean %>% 
+#   select(date_time, mean_sensors_temp) %>% 
+#   mutate(dataset = "sensors",
+#          fecha = date_time)
+# 
+# check_towers <- towers %>% 
+#   select(date_time, latent_heat_flux) %>% 
+#   mutate(dataset = "sensors",
+#          fecha = date_time)
+# 
+# check_left <- left_join(check_temp, check_towers, by = "date_time")
+# check_right <- right_join(check_temp, check_towers, by = "date_time")
+# check_inner <- inner_join(check_temp, check_towers, by = "date_time")
+# 
+# 
+# # Tengo los minutos de temperatura a 14 o 44 y no cerrados a la hora o media hora
+# x <- ymd_hms("2009-08-03 12:01:59.23")
+# floor_date(x, "minute")
+# 
+# floor_date(x, "hour")
+# 
+# x <- ymd_hms("2013-06-09 21:14:00")
+# ceiling_date(x, "30 mins")
+# 
+# x <- ymd_hms("2013-06-09 21:00:00")
+# ceiling_date(x, "30 mins")
+# 
+# # Prueba cambio de hora
+# check_temp %>% 
+#   slice(100:120) %>% 
+#   mutate(date_time = ymd_hms(date_time)) %>% 
+#   # separate(date_time, into = c("date", "time"), sep = " ") %>% 
+#   # mutate(time = hms(time),
+#   #        date = ymd(date)) %>% 
+#   # mutate(minutos = ifelse(minute(time) > 30, 
+#   #                         ceiling_date(time, "30 mins"),
+#   #                         floor_date(time, "hour"))
+#   # ) %>%
+#   mutate(minutos = ifelse(minute(date_time) > 30, 
+#                           ceiling_date(date_time, "30 mins"),
+#                           floor_date(date_time, "hour"))
+#   ) %>% 
+#   mutate(fecha_check = as_date(minutos, origin = lubridate::origin)) %>% View()
+#  # mutate(fecha_check = ymd_hms(minutos)) %>% View()
+# 
+# check_temp %>% 
+#   slice(100:120) %>% 
+#   mutate(minutos = ceiling_date(date_time, "30 mins")
+#   ) %>% View()
+```
+
+```{r}
+evapotranspiration %>% 
+  mutate(date = ymd_hms(date_time)) %>%
+  ggplot(aes(x = date_time, y = evapotranspiration_kg)) +
+  geom_jitter(alpha = 0.06, size = 0.7) +
+  scale_y_continuous() + #breaks = seq(10, 40, by = 2)
+  scale_x_datetime(date_labels = "%b%Y", breaks = "months") +
+  theme_light(base_size = 16) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Evapotranspiration",
+       subtitle = "All the datapoints from available",
+       x = "Date", y = "Evapotranspiration (kg H2O m−2 d−1)")
+```
+
+## Data aggregation
+
+In personal communication with Juergen Knauer (The developer of the Bigleaf R 
+package) says that if we want to see an effect per season, it will be better if 
+the data is aggregated per date.
+
+```{r grouped evapotranspiration}
+evapotranspiration_grouped <- evapotranspiration %>% 
+  mutate(date = as.Date(date_time)) %>% 
+  group_by(ymd(date)) %>% 
+  summarise(
+    mean = mean(evapotranspiration_mol, na.rm = TRUE),
+    total = sum(evapotranspiration_mol, na.rm = TRUE)
+  ) %>% 
+  rename("date" = `ymd(date)`)
+```
+
+
+```{r graficos evapotranspiracion}
+# Plot sum of evapotranspiration
+evapotranspiration_grouped %>% 
+  mutate(date = ymd(date),
+         year = as.factor(year(date))) %>%
+  ggplot(aes(x = date, y = total)) +
+  geom_rect(aes(xmin = date, 
+                xmax = dplyr::lead(date),
+                ymin = -200, 
+                ymax = Inf,
+                fill = year),
+            alpha = 0.8) +
+  geom_point(alpha = 0.5) +
+  geom_smooth() +
+  scale_fill_viridis_d() +
+  scale_x_date(date_labels = "%b", breaks = "months") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Sum of evapotranspiration per date",
+       subtitle = "Al the datapoints available",
+       x = "Date", y = "Evapotranspiration mmol H2O m-2 s-1")
+
+# Plot mean of evapotranspiration
+evapotranspiration_grouped %>% 
+  mutate(date = ymd(date),
+         year = as.factor(year(date))) %>%
+  ggplot(aes(x = date, y = mean)) +
+  geom_rect(aes(xmin = date, 
+                xmax = dplyr::lead(date),
+                ymin = -2, 
+                ymax = Inf,
+                fill = year),
+            alpha = 0.8) +
+  geom_point(alpha = 0.5) +
+  geom_smooth() +
+  scale_fill_viridis_d() +
+  scale_x_date(date_labels = "%b", breaks = "2 months") +
+  theme_light(base_size = 21) +
+  theme(axis.text.x = element_text(angle = 75, h = 1)) +
+  labs(title = "Mean of evapotranspiration per date",
+       subtitle = "Al the datapoints available",
+       x = "Date", 
+       y = "Evapotranspiration mmol H2O m-2 s-1",
+       fill = "Year")
+```
+
+
+### References
+
+https://stackoverflow.com/questions/9968975/make-the-background-of-a-graph-different-colours-in-different-regions
+https://stackoverflow.com/questions/50339909/shade-background-of-a-ggplot-chart-using-geom-rect-with-categorical-variables#50340075
+
+
+
+
+

@@ -213,7 +213,7 @@ carbon_tower_eddy_error_removal %>%
  - We have more data points than the other two datasets
  - The top values seems to have a hard upper limit on 26
 
-## Notes
+## Conclusions
 
  - We cannot use `mean_thermocouple_temp` from any of both towers because it
  seems to have a hard upper limit on 26 C.
@@ -221,6 +221,9 @@ carbon_tower_eddy_error_removal %>%
  with the temperature variable.
  - Using all the sensors data in one unified dataset can help us to have almost
  a complete date range from 2013 to 2020.
+ - We depend on the available observations from the `latent_heat_flux` variable
+ in order to have a complete data range of evapotranspiration because we have
+ an almost complete temperature data set.
  
 ```{r}
 # Export dataset
